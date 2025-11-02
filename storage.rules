@@ -1,0 +1,17 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // 講師プロフィール画像
+    match /instructor-profiles/{userId}/{allPaths=**} {
+      allow read: if true; // 誰でも読み取り可能
+      allow write: if true; // 開発中は誰でも書き込み可能（アプリ側で制御）
+    }
+    
+    // その他のファイル
+    match /{allPaths=**} {
+      allow read: if true; // 誰でも読み取り可能
+      allow write: if true; // 開発中は誰でも書き込み可能（アプリ側で制御）
+    }
+  }
+}
+
