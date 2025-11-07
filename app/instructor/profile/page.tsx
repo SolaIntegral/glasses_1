@@ -161,10 +161,9 @@ function InstructorProfileContent() {
         .map(s => s.trim())
         .filter(s => s.length > 0);
 
-      await updateInstructor(targetId, {
+      const updatePayload: Partial<Instructor> = {
         bio,
         specialties: specialtiesArray,
-        meetingUrl,
         gender,
         currentIndustry,
         currentOccupation,
@@ -174,7 +173,13 @@ function InstructorProfileContent() {
         messageToStudents,
         education,
         workHistory,
-      });
+      };
+
+      if (isAdminMode) {
+        updatePayload.meetingUrl = meetingUrl;
+      }
+
+      await updateInstructor(targetId, updatePayload);
 
       if (isAdminMode) {
         const userRef = doc(db, 'users', targetId);
@@ -423,9 +428,13 @@ function InstructorProfileContent() {
                 type="url"
                 value={meetingUrl}
                 onChange={(e) => setMeetingUrl(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${!isAdminMode ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                 placeholder="https://meet.google.com/xxx-xxxx-xxx"
+                disabled={!isAdminMode}
               />
+              {!isAdminMode && (
+                <p className="mt-2 text-xs text-gray-500">面談用URLの変更は管理者が行います。変更が必要な場合は事務局へご連絡ください。</p>
+              )}
             </div>
 
             <div>
