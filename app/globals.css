@@ -7,10 +7,11 @@
   --foreground: #171717;
 }
 
+/* ダークモード時も背景とテキストを固定（常に見やすい状態を維持） */
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #ffffff;
+    --foreground: #171717;
   }
 }
 
