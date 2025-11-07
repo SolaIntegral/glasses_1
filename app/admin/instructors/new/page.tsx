@@ -11,7 +11,7 @@ export default function NewInstructor() {
   const [userId, setUserId] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
-  const [slackMemberId, setSlackMemberId] = useState('');
+  const [meetingUrl, setMeetingUrl] = useState('');
   const [autoGenerate, setAutoGenerate] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -67,7 +67,8 @@ export default function NewInstructor() {
         userId: finalUserId,
         bio: '',
         specialties: [],
-        slackMemberId: slackMemberId || '',
+        meetingUrl: meetingUrl || '',
+        slackMemberId: '',
         profileImageUrl: '',
         isActive: true,
         createdAt: new Date(),
@@ -123,7 +124,7 @@ export default function NewInstructor() {
                   setDisplayName('');
                   setUserId('');
                   setPassword('');
-                  setSlackMemberId('');
+                  setMeetingUrl('');
                 }}
                 className="flex-1 bg-gray-600 text-white py-3 px-4 rounded-lg font-semibold text-center hover:bg-gray-700 transition-colors"
               >
@@ -205,15 +206,15 @@ export default function NewInstructor() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                SlackメンバーID
-                <span className="text-xs text-gray-500 ml-2">(例: U01234ABCDE)</span>
+                面談用URL
+                <span className="text-xs text-gray-500 ml-2">(例: https://meet.google.com/xxx-xxxx-xxx)</span>
               </label>
               <input
-                type="text"
-                value={slackMemberId}
-                onChange={(e) => setSlackMemberId(e.target.value)}
+                type="url"
+                value={meetingUrl}
+                onChange={(e) => setMeetingUrl(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="U01234ABCDE"
+                placeholder="https://meet.google.com/xxx-xxxx-xxx"
               />
             </div>
 
