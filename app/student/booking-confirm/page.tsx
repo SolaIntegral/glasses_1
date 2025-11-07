@@ -22,7 +22,7 @@ function BookingConfirmContent() {
   const [instructor, setInstructor] = useState<InstructorWithUser | null>(null);
   const [slot, setSlot] = useState<AvailableSlot | null>(null);
   const [consultationText, setConsultationText] = useState('');
-  const [sessionType, setSessionType] = useState<SessionType>('one-time');
+  const [sessionType, setSessionType] = useState<SessionType>('recurring');
   const [questionsBeforeSession, setQuestionsBeforeSession] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [bookingLoading, setBookingLoading] = useState(false);
