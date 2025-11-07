@@ -21,10 +21,24 @@ export default function DateSearchPage() {
   const currentYear = today.getFullYear();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   
-  const days = Array.from({ length: daysInMonth }, (_, i) => {
-    const date = new Date(currentYear, currentMonth, i + 1);
-    return date;
-  }).filter(date => date >= todayStartOfDay); // 過去の日付は除外
+  // 月の最初の日を取得
+  const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
+  // 月の最初の日の曜日を取得（0=日曜日、1=月曜日、...、6=土曜日）
+  const firstDayOfWeek = firstDayOfMonth.getDay();
+  
+  // カレンダー表示用の配列（最初の日の前の空セル + 日付）
+  const calendarDays: (Date | null)[] = [];
+  
+  // 最初の日の前の空セルを追加
+  for (let i = 0; i < firstDayOfWeek; i++) {
+    calendarDays.push(null);
+  }
+  
+  // 全ての日付を生成して追加
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(currentYear, currentMonth, day);
+    calendarDays.push(date);
+  }
 
   useEffect(() => {
     const fetchData = async () => {
@@ -75,12 +89,7 @@ export default function DateSearchPage() {
               </svg>
             </Link>
             <h1 className="text-lg font-semibold text-gray-900">日時から探す</h1>
-            <button className="relative p-2">
-              <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
+            <div className="w-10"></div>
           </div>
         </div>
       </header>
@@ -101,26 +110,39 @@ export default function DateSearchPage() {
             ))}
             
             {/* 日付 */}
-            {days.map((date, index) => (
-              <button
-                key={index}
-                onClick={() => handleDateSelect(date)}
-                className={`
-                  relative p-2 text-sm rounded-lg transition-colors
-                  ${selectedDate && isSameDay(date, selectedDate)
-                    ? 'bg-blue-600 text-white'
-                    : hasAvailableSlots(date)
-                    ? 'bg-green-50 text-green-700 hover:bg-green-100'
-                    : 'text-gray-400 hover:bg-gray-50'
-                  }
-                `}
-              >
-                {format(date, 'd')}
-                {hasAvailableSlots(date) && (
-                  <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-green-500 rounded-full"></div>
-                )}
-              </button>
-            ))}
+            {calendarDays.map((date, index) => {
+              if (date === null) {
+                // 空セル
+                return <div key={`empty-${index}`} className="p-2"></div>;
+              }
+              
+              // 過去の日付は表示しない（グレーアウト）
+              const isPast = date < todayStartOfDay;
+              
+              return (
+                <button
+                  key={index}
+                  onClick={() => !isPast && handleDateSelect(date)}
+                  disabled={isPast}
+                  className={`
+                    relative p-2 text-sm rounded-lg transition-colors
+                    ${isPast
+                      ? 'text-gray-300 cursor-not-allowed'
+                      : selectedDate && isSameDay(date, selectedDate)
+                      ? 'bg-blue-600 text-white'
+                      : hasAvailableSlots(date)
+                      ? 'bg-green-50 text-green-700 hover:bg-green-100'
+                      : 'text-gray-700 hover:bg-gray-50'
+                    }
+                  `}
+                >
+                  {format(date, 'd')}
+                  {!isPast && hasAvailableSlots(date) && (
+                    <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-green-500 rounded-full"></div>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -141,28 +163,53 @@ export default function DateSearchPage() {
                   const instructor = instructors.find(inst => inst.id === slot.instructorId);
                   const startTime = slot.startTime instanceof Date ? slot.startTime : new Date(slot.startTime);
                   const endTime = slot.endTime instanceof Date ? slot.endTime : new Date(slot.endTime);
+                  const now = new Date();
+                  const isPast = startTime <= now;
+                  const hoursDiff = (startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+                  // 2時間前を過ぎている場合は選択不可（時間が過ぎていない場合も含む）
+                  const isSelectable = !isPast && hoursDiff >= 2;
                   
                   return (
-                    <div key={slot.id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                    <div key={slot.id} className={`flex items-center justify-between p-3 border rounded-lg ${
+                      !isSelectable
+                        ? 'border-gray-200 bg-gray-100 opacity-50'
+                        : 'border-gray-200'
+                    }`}>
                       <div className="flex items-center space-x-3">
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className={`text-sm font-medium ${!isSelectable ? 'text-gray-400' : 'text-gray-900'}`}>
                           {format(startTime, 'HH:mm')}〜{format(endTime, 'HH:mm')}
                         </div>
                         <div className="flex items-center space-x-2">
-                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                            !isSelectable ? 'bg-gray-200' : 'bg-blue-100'
+                          }`}>
                             <span className="text-sm">👨‍🏫</span>
                           </div>
-                          <span className="text-sm font-medium text-gray-900">
+                          <span className={`text-sm font-medium ${!isSelectable ? 'text-gray-400' : 'text-gray-900'}`}>
                             {instructor?.user.displayName || '講師'}
                           </span>
                         </div>
+                        {!isSelectable && (
+                          <span className="text-xs text-gray-400">
+                            {isPast ? '時間が過ぎています' : '2時間前までに予約してください'}
+                          </span>
+                        )}
                       </div>
-                      <Link
-                        href={`/student/booking-confirm?instructorId=${slot.instructorId}&slotId=${slot.id}`}
-                        className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        予約
-                      </Link>
+                      {isSelectable ? (
+                        <Link
+                          href={`/student/booking-confirm?instructorId=${slot.instructorId}&slotId=${slot.id}`}
+                          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          予約
+                        </Link>
+                      ) : (
+                        <button
+                          disabled
+                          className="px-4 py-2 bg-gray-300 text-gray-500 text-sm rounded-lg cursor-not-allowed"
+                        >
+                          予約不可
+                        </button>
+                      )}
                     </div>
                   );
                 })}

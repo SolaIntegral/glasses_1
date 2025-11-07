@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import Loading from '@/components/ui/Loading';
 import { Suspense } from 'react';
-import { Education, WorkHistory } from '@/types';
+import { Education, WorkHistory, SessionType } from '@/types';
 
 function InstructorDetailContent() {
   const router = useRouter();
@@ -21,6 +21,8 @@ function InstructorDetailContent() {
   const [instructor, setInstructor] = useState<any>(null);
   const [availableSlots, setAvailableSlots] = useState<any[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<any>(null);
+  const [sessionType, setSessionType] = useState<SessionType>('recurring');
+  const [consultationText, setConsultationText] = useState('');
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
   const [error, setError] = useState('');
@@ -58,19 +60,18 @@ function InstructorDetailContent() {
     try {
       const slots = await getAvailableSlotsByInstructor(instructorId);
       
-      // 予約可能な時間のみをフィルター
-      const now = new Date();
+      // 全てのスロットを取得（過去のものも含む）
+      // 過去のものは表示するが、灰色にして無効化する
       const maxBookingDate = new Date();
       maxBookingDate.setDate(maxBookingDate.getDate() + 14); // 2週間後まで
       
-      const availableFutureSlots = slots.filter(slot => {
+      const allSlots = slots.filter(slot => {
         const slotStartTime = slot.startTime instanceof Date ? slot.startTime : new Date(slot.startTime);
-        // 24時間以上先 かつ 2週間以内 かつ 予約されていない
-        const hoursDiff = (slotStartTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-        return hoursDiff >= 24 && slotStartTime <= maxBookingDate && !slot.isBooked;
+        // 2週間以内 かつ 予約されていない
+        return slotStartTime <= maxBookingDate && !slot.isBooked;
       });
       
-      setAvailableSlots(availableFutureSlots);
+      setAvailableSlots(allSlots);
     } catch (err) {
       console.error('Error fetching available slots:', err);
     }
@@ -96,10 +97,10 @@ function InstructorDetailContent() {
         selectedSlot.id,
         selectedSlot.startTime,
         selectedSlot.endTime,
-        '面談',
-        undefined,
-        'one-time',
-        undefined
+        consultationText.trim() || '面談',
+        consultationText.trim() || undefined,
+        sessionType,
+        sessionType === 'one-time' && consultationText ? [consultationText] : undefined
       );
 
       router.push(`/student/booking-complete?bookingId=${bookingId}`);
@@ -132,7 +133,7 @@ function InstructorDetailContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-gray-50 pb-32">
       <header className="bg-white shadow-sm">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -280,7 +281,7 @@ function InstructorDetailContent() {
         )}
 
         {/* 空き時間枠 */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">空き時間</h3>
           
           {availableSlots.length === 0 ? (
@@ -288,45 +289,127 @@ function InstructorDetailContent() {
               現在、空き時間がありません
             </p>
           ) : (
-            <>
-              <div className="space-y-3 max-h-96 overflow-y-auto mb-6">
-                {availableSlots.map((slot) => (
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+              {availableSlots.map((slot) => {
+                const slotStartTime = slot.startTime instanceof Date ? slot.startTime : new Date(slot.startTime);
+                const now = new Date();
+                const isPast = slotStartTime <= now;
+                const hoursDiff = (slotStartTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+                // 2時間前を過ぎている場合は選択不可（時間が過ぎていない場合も含む）
+                const isSelectable = !isPast && hoursDiff >= 2;
+                
+                return (
                   <button
                     key={slot.id}
-                    onClick={() => handleSelectSlot(slot)}
+                    onClick={() => isSelectable && handleSelectSlot(slot)}
+                    disabled={!isSelectable}
                     className={`w-full p-4 border-2 rounded-lg text-left transition-colors ${
-                      selectedSlot?.id === slot.id
+                      !isSelectable
+                        ? 'border-gray-200 bg-gray-100 cursor-not-allowed opacity-50'
+                        : selectedSlot?.id === slot.id
                         ? 'border-blue-600 bg-blue-50'
                         : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="font-semibold text-gray-900">
-                          {format(slot.startTime instanceof Date ? slot.startTime : new Date(slot.startTime), 'yyyy年MM月dd日(E)', { locale: ja })}
+                        <p className={`font-semibold ${!isSelectable ? 'text-gray-400' : 'text-gray-900'}`}>
+                          {format(slotStartTime, 'yyyy年MM月dd日(E)', { locale: ja })}
                         </p>
-                        <p className="text-sm text-gray-600 mt-1">
-                          {format(slot.startTime instanceof Date ? slot.startTime : new Date(slot.startTime), 'HH:mm', { locale: ja })} - {format(slot.endTime instanceof Date ? slot.endTime : new Date(slot.endTime), 'HH:mm', { locale: ja })}
+                        <p className={`text-sm mt-1 ${!isSelectable ? 'text-gray-400' : 'text-gray-600'}`}>
+                          {format(slotStartTime, 'HH:mm', { locale: ja })} - {format(slot.endTime instanceof Date ? slot.endTime : new Date(slot.endTime), 'HH:mm', { locale: ja })}
                         </p>
+                        {!isSelectable && (
+                          <p className="text-xs text-gray-400 mt-1">
+                            {isPast ? '時間が過ぎています' : '2時間前までに予約してください'}
+                          </p>
+                        )}
                       </div>
-                      {selectedSlot?.id === slot.id && (
+                      {selectedSlot?.id === slot.id && isSelectable && (
                         <span className="text-blue-600">✓</span>
                       )}
                     </div>
                   </button>
-                ))}
-              </div>
-              
-              <button
-                onClick={handleConfirmBooking}
-                disabled={!selectedSlot || booking}
-                className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold text-center hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                {booking ? '予約中...' : '予約を確定する'}
-              </button>
-            </>
+                );
+              })}
+            </div>
           )}
         </div>
+
+        {/* 予約フォーム（スロット選択時のみ表示） */}
+        {selectedSlot && (
+          <div className="bg-white rounded-lg shadow p-6 mb-6 space-y-6">
+            <h3 className="text-lg font-semibold text-gray-900">予約情報</h3>
+            
+            {/* 選択されたスロット情報 */}
+            <div className="bg-blue-50 rounded-lg p-4">
+              <p className="text-sm font-medium text-gray-700 mb-1">選択した日時</p>
+              <p className="text-gray-900">
+                {format(selectedSlot.startTime instanceof Date ? selectedSlot.startTime : new Date(selectedSlot.startTime), 'yyyy年MM月dd日(E) HH:mm', { locale: ja })} - {format(selectedSlot.endTime instanceof Date ? selectedSlot.endTime : new Date(selectedSlot.endTime), 'HH:mm', { locale: ja })}
+              </p>
+            </div>
+
+            {/* セッションタイプ */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-3">セッションタイプ</h4>
+              <div className="space-y-3">
+                <label className="flex items-center p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
+                  <input
+                    type="radio"
+                    name="sessionType"
+                    value="one-time"
+                    checked={sessionType === 'one-time'}
+                    onChange={(e) => setSessionType(e.target.value as SessionType)}
+                    className="mr-3"
+                  />
+                  <div className="flex-1">
+                    <div className="font-semibold text-gray-900">単発</div>
+                    <div className="text-sm text-gray-600">今回限りのセッション</div>
+                  </div>
+                </label>
+                <label className="flex items-center p-4 border-2 border-gray-200 rounded-lg cursor-pointer hover:border-blue-300 transition-colors">
+                  <input
+                    type="radio"
+                    name="sessionType"
+                    value="recurring"
+                    checked={sessionType === 'recurring'}
+                    onChange={(e) => setSessionType(e.target.value as SessionType)}
+                    className="mr-3"
+                  />
+                  <div className="flex-1">
+                    <div className="font-semibold text-gray-900">定例</div>
+                    <div className="text-sm text-gray-600">継続的なセッション</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* 相談したいこと */}
+            <div>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">事前に聞きたいこと（任意）</h4>
+              <textarea
+                value={consultationText}
+                onChange={(e) => setConsultationText(e.target.value)}
+                placeholder="事前に伝えておきたい内容があればご記入ください"
+                className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                rows={4}
+                maxLength={500}
+              />
+              <div className="text-right text-sm text-gray-500 mt-2">
+                {consultationText.length}/500文字
+              </div>
+            </div>
+
+            {/* 予約確定ボタン */}
+            <button
+              onClick={handleConfirmBooking}
+              disabled={booking}
+              className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold text-center hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {booking ? '予約中...' : '予約を確定する'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

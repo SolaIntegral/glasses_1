@@ -1,54 +1,68 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useRef } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
 
 export default function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const [redirecting, setRedirecting] = useState(false);
+  const hasRedirected = useRef(false);
 
   useEffect(() => {
-    console.log('Home page - loading:', loading, 'user:', user);
-    if (!loading && user) {
-      console.log('User is logged in, role:', user.role);
-      // ログイン済みの場合はロールに応じてリダイレクト
-      // ただし、既にダッシュボードにいる場合はリダイレクトしない
-      const currentPath = window.location.pathname;
-      const dashboardPaths = ['/admin', '/instructor', '/student'];
-      if (dashboardPaths.some(path => currentPath.startsWith(path))) {
-        console.log('Already in dashboard area, skipping redirect');
-        return;
-      }
-      
-      if (user.role === 'admin') {
-        console.log('Redirecting to admin dashboard');
-        router.push('/admin/dashboard');
-      } else if (user.role === 'instructor') {
-        console.log('Redirecting to instructor dashboard');
-        router.push('/instructor/dashboard');
-      } else {
-        console.log('Redirecting to student dashboard');
-        router.push('/student/dashboard');
-      }
+    // 既にリダイレクト済みの場合は何もしない
+    if (hasRedirected.current) {
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, loading]);
 
-  if (loading) {
+    // ローディング中は何もしない
+    if (loading) {
+      return;
+    }
+
+    // ユーザーがログインしていない場合は何もしない
+    if (!user) {
+      return;
+    }
+
+    // 既にダッシュボードエリアにいる場合はリダイレクトしない
+    const dashboardPaths = ['/admin', '/instructor', '/student'];
+    if (dashboardPaths.some(path => pathname.startsWith(path))) {
+      return;
+    }
+
+    // リダイレクトを実行
+    hasRedirected.current = true;
+    setRedirecting(true);
+
+    if (user.role === 'admin') {
+      router.replace('/admin/dashboard');
+    } else if (user.role === 'instructor') {
+      router.replace('/instructor/dashboard');
+    } else {
+      router.replace('/student/dashboard');
+    }
+  }, [user, loading, router, pathname]);
+
+  // ローディング中またはリダイレクト中
+  if (loading || redirecting) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">読み込み中...</p>
+          <p className="mt-4 text-gray-600">
+            {loading ? '読み込み中...' : 'リダイレクト中...'}
+          </p>
         </div>
       </div>
     );
   }
 
-  // ログイン済みの場合は何も表示せず、リダイレクトを待つ
-  if (user) {
+  // ログイン済みユーザーがホームページにいる場合（リダイレクトが完了するまで）
+  if (user && pathname === '/') {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -120,7 +134,7 @@ export default function Home() {
                 <p className="text-sm sm:text-base font-semibold text-gray-700">✅ 予約可能期間: 2週間先まで</p>
               </div>
               <div>
-                <p className="text-sm sm:text-base font-semibold text-gray-700">✅ 予約制限: 24時間前まで</p>
+                <p className="text-sm sm:text-base font-semibold text-gray-700">✅ 予約制限: 2時間前まで</p>
                 <p className="text-sm sm:text-base font-semibold text-gray-700">✅ キャンセル: 24時間前まで可能</p>
               </div>
             </div>
