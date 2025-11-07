@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import MobileHeader from '@/components/ui/MobileHeader';
 import MobileNavigation from '@/components/ui/MobileNavigation';
@@ -14,24 +14,43 @@ export default function InstructorLayout({
 }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    if (!loading) {
-      if (!user) {
-        router.push('/auth/login');
-      } else if (user.role !== 'instructor') {
-        router.push('/student/instructors');
-      }
+    // ローディング中は何もしない
+    if (loading) {
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, loading]);
+
+    // 既にログインページにいる場合は何もしない
+    if (pathname === '/auth/login') {
+      return;
+    }
+
+    if (!user) {
+      router.replace('/auth/login');
+      return;
+    }
+
+    if (user.role !== 'instructor') {
+      // ロールに応じて適切なダッシュボードにリダイレクト
+      if (user.role === 'admin') {
+        router.replace('/admin/dashboard');
+      } else if (user.role === 'student') {
+        router.replace('/student/dashboard');
+      } else {
+        router.replace('/auth/login');
+      }
+      return;
+    }
+  }, [user, loading, router, pathname]);
 
   if (loading) {
     return <Loading />;
   }
 
   if (!user || user.role !== 'instructor') {
-    return null;
+    return <Loading />;
   }
 
   return (

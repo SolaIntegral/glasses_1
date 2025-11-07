@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import AdminSidebar from '@/components/ui/AdminSidebar';
 import Loading from '@/components/ui/Loading';
@@ -13,39 +13,36 @@ export default function AdminLayout({
 }) {
   const { user, loading } = useAuth();
   const router = useRouter();
-
-  console.log('AdminLayout render - loading:', loading, 'user:', user?.role);
+  const pathname = usePathname();
 
   useEffect(() => {
-    console.log('AdminLayout useEffect - loading:', loading, 'user:', user?.role);
-    if (!loading) {
-      if (!user) {
-        console.log('Admin layout: No user, redirecting to login');
-        router.push('/auth/login');
-      } else if (user.role !== 'admin') {
-        // 管理者以外はアクセス不可
-        console.log('Admin layout: User is not admin, role:', user.role);
-        router.push('/auth/login');
-      } else {
-        console.log('Admin layout: User is admin, access granted');
-      }
+    // ローディング中は何もしない
+    if (loading) {
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, loading]);
 
-  console.log('AdminLayout before render check - loading:', loading, 'user:', user?.role);
+    // 既にログインページにいる場合は何もしない
+    if (pathname === '/auth/login') {
+      return;
+    }
 
+    // ユーザーがログインしていない、または管理者でない場合はログインページにリダイレクト
+    if (!user || user.role !== 'admin') {
+      router.replace('/auth/login');
+      return;
+    }
+  }, [user, loading, router, pathname]);
+
+  // ローディング中はローディング画面を表示
   if (loading) {
-    console.log('AdminLayout: loading is true, showing Loading');
     return <Loading />;
   }
 
+  // ユーザーがログインしていない、または管理者でない場合はローディング画面を表示
+  // （リダイレクトが完了するまで）
   if (!user || user.role !== 'admin') {
-    console.log('AdminLayout: not admin or no user, returning null');
-    return null;
+    return <Loading />;
   }
-
-  console.log('AdminLayout: rendering admin dashboard');
 
   return (
     <div className="flex min-h-screen bg-gray-100">
