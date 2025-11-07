@@ -1,10 +1,11 @@
 "use strict";
 var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendPostSessionReminder = exports.sendSessionReminder = exports.signUpWithCustomToken = exports.sendBookingCancellationNotification = exports.sendReportReminder = exports.sendBookingNotification = exports.signInWithCustomToken = void 0;
+exports.onUpdateBooking = exports.onCreateBooking = exports.sendPostSessionReminder = exports.sendSessionReminder = exports.signUpWithCustomToken = exports.sendBookingCancellationNotification = exports.sendReportReminder = exports.sendBookingNotification = exports.signInWithCustomToken = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const web_api_1 = require("@slack/web-api");
+const googleapis_1 = require("googleapis");
 admin.initializeApp();
 // Slack Bot Token（環境変数から取得）
 const slackToken = ((_a = functions.config().slack) === null || _a === void 0 ? void 0 : _a.bot_token) || process.env.SLACK_BOT_TOKEN;
@@ -486,6 +487,198 @@ exports.sendPostSessionReminder = functions.pubsub.schedule('every 30 minutes').
     }
     catch (error) {
         console.error('Error in sendPostSessionReminder:', error);
+    }
+    return null;
+});
+// Google Calendar APIの設定
+const getCalendarClient = () => {
+    var _a;
+    // サービスアカウントの認証情報を環境変数から取得
+    // または Firebase Functions の設定から取得
+    const serviceAccountKey = (_a = functions.config().google) === null || _a === void 0 ? void 0 : _a.service_account_key;
+    if (!serviceAccountKey) {
+        console.warn('Google Calendar API credentials not configured');
+        return null;
+    }
+    try {
+        // サービスアカウントキーはすでにオブジェクトとして保存されている
+        // 文字列の場合はパース、オブジェクトの場合はそのまま使用
+        const credentials = typeof serviceAccountKey === 'string'
+            ? JSON.parse(serviceAccountKey)
+            : serviceAccountKey;
+        // サービスアカウント認証
+        const auth = new googleapis_1.google.auth.GoogleAuth({
+            credentials: credentials,
+            scopes: ['https://www.googleapis.com/auth/calendar'],
+        });
+        const calendar = googleapis_1.google.calendar({ version: 'v3', auth });
+        return calendar;
+    }
+    catch (error) {
+        console.error('Error initializing Google Calendar client:', error);
+        console.error('Service account key type:', typeof serviceAccountKey);
+        return null;
+    }
+};
+// 共通カレンダーIDを取得（環境変数またはFirebase Functions設定から）
+const getSharedCalendarId = () => {
+    var _a;
+    // Firebase Functions の設定から取得
+    const calendarId = ((_a = functions.config().google) === null || _a === void 0 ? void 0 : _a.calendar_id) || process.env.GOOGLE_CALENDAR_ID;
+    return calendarId || null;
+};
+// 予約作成時にGoogleカレンダーにイベントを追加
+exports.onCreateBooking = functions.firestore
+    .document('bookings/{bookingId}')
+    .onCreate(async (snap, context) => {
+    const booking = snap.data();
+    const bookingId = context.params.bookingId;
+    // 予約が確定済みの場合のみ処理
+    if (booking.status !== 'confirmed') {
+        return null;
+    }
+    try {
+        // 共通カレンダーIDを取得
+        const calendarId = getSharedCalendarId();
+        if (!calendarId) {
+            console.warn('Shared calendar ID not configured');
+            return null;
+        }
+        // 講師情報を取得
+        const instructorDoc = await admin.firestore()
+            .collection('instructors')
+            .doc(booking.instructorId)
+            .get();
+        if (!instructorDoc.exists) {
+            console.warn(`Instructor not found: ${booking.instructorId}`);
+            return null;
+        }
+        const instructor = instructorDoc.data();
+        // 講師の情報を取得
+        const userDoc = await admin.firestore()
+            .collection('users')
+            .doc(booking.instructorId)
+            .get();
+        const userData = userDoc.exists ? userDoc.data() : null;
+        const instructorName = (userData === null || userData === void 0 ? void 0 : userData.displayName) || '講師';
+        const instructorEmail = (userData === null || userData === void 0 ? void 0 : userData.email) || (instructor === null || instructor === void 0 ? void 0 : instructor.email);
+        const instructorMeetingUrl = (instructor === null || instructor === void 0 ? void 0 : instructor.meetingUrl) || booking.meetingUrl;
+        // 生徒情報を取得
+        const studentDoc = await admin.firestore()
+            .collection('users')
+            .doc(booking.studentId)
+            .get();
+        const student = studentDoc.exists ? studentDoc.data() : null;
+        const studentName = (student === null || student === void 0 ? void 0 : student.displayName) || '生徒';
+        // Google Calendar APIクライアントを取得
+        const calendar = getCalendarClient();
+        if (!calendar) {
+            console.warn('Google Calendar client not available');
+            return null;
+        }
+        // 日時をフォーマット
+        const startTime = booking.startTime.toDate();
+        const endTime = booking.endTime.toDate();
+        // イベントの説明文を作成
+        const description = [
+            `講師名: ${instructorName}`,
+            `生徒名: ${studentName}`,
+            `目的: ${booking.purpose || '面談'}`,
+            booking.notes ? `メモ: ${booking.notes}` : '',
+            booking.sessionType === 'one-time' ? 'セッションタイプ: 単発' : 'セッションタイプ: 定例',
+            booking.questionsBeforeSession && booking.questionsBeforeSession.length > 0
+                ? `事前質問:\n${booking.questionsBeforeSession.join('\n')}`
+                : '',
+            instructorMeetingUrl ? `\nミーティングリンク: ${instructorMeetingUrl}` : '',
+        ]
+            .filter(Boolean)
+            .join('\n');
+        // Googleカレンダーにイベントを作成
+        const event = Object.assign({ summary: `【メンターセッション】${instructorName} × ${studentName} の面談`, description: description, start: {
+                dateTime: startTime.toISOString(),
+                timeZone: 'Asia/Tokyo',
+            }, end: {
+                dateTime: endTime.toISOString(),
+                timeZone: 'Asia/Tokyo',
+            }, attendees: [
+                ...(instructorEmail ? [{ email: instructorEmail }] : []),
+                ...((student === null || student === void 0 ? void 0 : student.email) ? [{ email: student.email }] : []),
+            ], reminders: {
+                useDefault: false,
+                overrides: [
+                    { method: 'email', minutes: 24 * 60 },
+                    { method: 'popup', minutes: 15 }, // 15分前
+                ],
+            } }, (instructorMeetingUrl ? {
+            hangoutLink: instructorMeetingUrl,
+            conferenceData: {
+                createRequest: {
+                    requestId: `booking-${bookingId}`,
+                    conferenceSolutionKey: { type: 'hangoutsMeet' },
+                },
+            },
+        } : {}));
+        const response = await calendar.events.insert({
+            calendarId: calendarId,
+            requestBody: event,
+            sendUpdates: 'all', // 参加者にメール通知を送信
+        });
+        // イベントIDを予約データに保存
+        await snap.ref.update({
+            googleCalendarEventId: response.data.id,
+            googleCalendarLink: response.data.htmlLink,
+        });
+        console.log(`Google Calendar event created: ${response.data.id}`);
+        // Slack通知は一旦無効化（カレンダー連携の確認を優先）
+        // TODO: カレンダー連携が確認できたら、Slack通知を再有効化
+        return response.data;
+    }
+    catch (error) {
+        console.error('Error creating Google Calendar event:', error);
+        // エラーが発生しても予約作成は続行する
+        return null;
+    }
+});
+// 予約キャンセル時にGoogleカレンダーのイベントを削除
+exports.onUpdateBooking = functions.firestore
+    .document('bookings/{bookingId}')
+    .onUpdate(async (change, context) => {
+    const before = change.before.data();
+    const after = change.after.data();
+    const bookingId = context.params.bookingId;
+    // 予約がキャンセルされた場合
+    if (before.status === 'confirmed' && after.status === 'cancelled') {
+        const googleCalendarEventId = before.googleCalendarEventId;
+        if (!googleCalendarEventId) {
+            console.log('No Google Calendar event ID found for booking:', bookingId);
+            return null;
+        }
+        try {
+            // 共通カレンダーIDを取得
+            const calendarId = getSharedCalendarId();
+            if (!calendarId) {
+                console.warn('Shared calendar ID not configured');
+                return null;
+            }
+            const calendar = getCalendarClient();
+            if (!calendar) {
+                console.warn('Google Calendar client not available');
+                return null;
+            }
+            // イベントを削除
+            await calendar.events.delete({
+                calendarId: calendarId,
+                eventId: googleCalendarEventId,
+                sendUpdates: 'all', // 参加者にキャンセル通知を送信
+            });
+            console.log(`Google Calendar event deleted: ${googleCalendarEventId}`);
+        }
+        catch (error) {
+            console.error('Error deleting Google Calendar event:', error);
+            // エラーが発生しても処理は続行
+        }
+        // Slack通知は一旦無効化（カレンダー連携の確認を優先）
+        // TODO: カレンダー連携が確認できたら、Slack通知を再有効化
     }
     return null;
 });
