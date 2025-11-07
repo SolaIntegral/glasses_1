@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { getAvailableSlotsByInstructor, deleteAvailableSlot } from '@/lib/firebase/availability';
@@ -17,6 +17,7 @@ export default function AvailabilityPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -86,6 +87,14 @@ export default function AvailabilityPage() {
     );
   };
 
+  const sortedSlots = useMemo(() => {
+    return [...slots].sort((a, b) => {
+      const aStart = a.startTime instanceof Date ? a.startTime : new Date(a.startTime);
+      const bStart = b.startTime instanceof Date ? b.startTime : new Date(b.startTime);
+      return aStart.getTime() - bStart.getTime();
+    });
+  }, [slots]);
+
   if (loading) {
     return <Loading />;
   }
@@ -134,106 +143,206 @@ export default function AvailabilityPage() {
           </div>
         )}
 
-        {/* カレンダー */}
+        {/* 表示モード切り替え */}
         <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            {format(today, 'yyyy年M月', { locale: ja })}
-          </h2>
-          
-          <div className="grid grid-cols-7 gap-2">
-            {/* 曜日ヘッダー */}
-            {['日', '月', '火', '水', '木', '金', '土'].map(day => (
-              <div key={day} className="text-center text-sm font-medium text-gray-500 py-2">
-                {day}
-              </div>
-            ))}
-            
-            {/* 日付 */}
-            {calendarDays.map((date, index) => {
-              if (date === null) {
-                // 空セル
-                return <div key={`empty-${index}`} className="p-2"></div>;
-              }
-              
-              const daySlots = getSlotsForDate(date);
-              const hasBookedSlots = daySlots.some(slot => isSlotBooked(slot.id));
-              const isPast = date < todayStartOfDay;
-              
-              return (
-                <button
-                  key={index}
-                  onClick={() => handleDateSelect(date)}
-                  className={`
-                    relative p-2 text-sm rounded-lg transition-colors
-                    ${isPast
-                      ? 'text-gray-300 cursor-not-allowed'
-                      : selectedDate && isSameDay(date, selectedDate)
-                      ? 'bg-blue-600 text-white'
-                      : hasSlots(date)
-                      ? hasBookedSlots
-                        ? 'bg-green-50 text-green-700 hover:bg-green-100'
-                        : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                      : 'text-gray-700 hover:bg-gray-50'
-                    }
-                  `}
-                >
-                  {format(date, 'd')}
-                  {!isPast && hasSlots(date) && (
-                    <div className={`absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full ${
-                      hasBookedSlots ? 'bg-green-500' : 'bg-blue-500'
-                    }`}></div>
-                  )}
-                </button>
-              );
-            })}
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={() => setViewMode('calendar')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                viewMode === 'calendar'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              カレンダー表示
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              リスト表示
+            </button>
           </div>
         </div>
 
-        {/* 選択した日付の予約枠 */}
-        {selectedDate && (
+        {viewMode === 'calendar' && (
+          <>
+            {/* カレンダー */}
+            <div className="bg-white rounded-lg shadow p-4 mb-6">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                {format(today, 'yyyy年M月', { locale: ja })}
+              </h2>
+              
+              <div className="grid grid-cols-7 gap-2">
+                {/* 曜日ヘッダー */}
+                {['日', '月', '火', '水', '木', '金', '土'].map(day => (
+                  <div key={day} className="text-center text-sm font-medium text-gray-500 py-2">
+                    {day}
+                  </div>
+                ))}
+                
+                {/* 日付 */}
+                {calendarDays.map((date, index) => {
+                  if (date === null) {
+                    // 空セル
+                    return <div key={`empty-${index}`} className="p-2"></div>;
+                  }
+                  
+                  const daySlots = getSlotsForDate(date);
+                  const hasBookedSlots = daySlots.some(slot => isSlotBooked(slot.id));
+                  const isPast = date < todayStartOfDay;
+                  
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => handleDateSelect(date)}
+                      className={`
+                        relative p-2 text-sm rounded-lg transition-colors
+                        ${isPast
+                          ? 'text-gray-300 cursor-not-allowed'
+                          : selectedDate && isSameDay(date, selectedDate)
+                          ? 'bg-blue-600 text-white'
+                          : hasSlots(date)
+                          ? hasBookedSlots
+                            ? 'bg-green-50 text-green-700 hover:bg-green-100'
+                            : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                          : 'text-gray-700 hover:bg-gray-50'
+                        }
+                      `}
+                    >
+                      {format(date, 'd')}
+                      {!isPast && hasSlots(date) && (
+                        <div className={`absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full ${
+                          hasBookedSlots ? 'bg-green-500' : 'bg-blue-500'
+                        }`}></div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 選択した日付の予約枠 */}
+            {selectedDate && (
+              <div className="bg-white rounded-lg shadow p-4 mb-20">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  {format(selectedDate, 'M月d日の予約枠', { locale: ja })}
+                </h3>
+                
+                {getSlotsForDate(selectedDate).length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-600 mb-4">この日は予約枠がありません。</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {getSlotsForDate(selectedDate).map((slot) => {
+                      const startTime = slot.startTime instanceof Date ? slot.startTime : new Date(slot.startTime);
+                      const endTime = slot.endTime instanceof Date ? slot.endTime : new Date(slot.endTime);
+                      const booked = isSlotBooked(slot.id);
+                      
+                      return (
+                        <div 
+                          key={slot.id} 
+                          className={`flex items-center justify-between p-3 border rounded-lg ${
+                            booked ? 'border-green-200 bg-green-50' : 'border-gray-200'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <div className="font-medium text-gray-900">
+                              {format(startTime, 'HH:mm')}〜{format(endTime, 'HH:mm')}
+                            </div>
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              booked 
+                                ? 'bg-green-100 text-green-700' 
+                                : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {booked ? '予約済み' : '予約可'}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteSlot(slot.id)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        {viewMode === 'list' && (
           <div className="bg-white rounded-lg shadow p-4 mb-20">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              {format(selectedDate, 'M月d日の予約枠', { locale: ja })}
-            </h3>
-            
-            {getSlotsForDate(selectedDate).length === 0 ? (
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">登録済みの予約枠一覧</h3>
+
+            {sortedSlots.length === 0 ? (
               <div className="text-center py-8">
-                <p className="text-gray-600 mb-4">この日は予約枠がありません。</p>
+                <p className="text-gray-600 mb-2">まだ予約枠が登録されていません。</p>
+                <p className="text-gray-500 text-sm">「新しい予約枠を追加する」から枠を作成してください。</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {getSlotsForDate(selectedDate).map((slot) => {
+                {sortedSlots.map((slot) => {
                   const startTime = slot.startTime instanceof Date ? slot.startTime : new Date(slot.startTime);
                   const endTime = slot.endTime instanceof Date ? slot.endTime : new Date(slot.endTime);
                   const booked = isSlotBooked(slot.id);
-                  
+                  const isPastSlot = endTime < today;
+
                   return (
-                    <div 
-                      key={slot.id} 
-                      className={`flex items-center justify-between p-3 border rounded-lg ${
-                        booked ? 'border-green-200 bg-green-50' : 'border-gray-200'
+                    <div
+                      key={slot.id}
+                      className={`flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg ${
+                        booked
+                          ? 'border-green-200 bg-green-50'
+                          : isPastSlot
+                          ? 'border-gray-200 bg-gray-100'
+                          : 'border-gray-200 bg-white'
                       }`}
                     >
-                      <div className="flex items-center space-x-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-2 sm:space-y-0">
+                        <div className="text-sm text-gray-600">
+                          {format(startTime, 'yyyy年M月d日(E)', { locale: ja })}
+                        </div>
                         <div className="font-medium text-gray-900">
                           {format(startTime, 'HH:mm')}〜{format(endTime, 'HH:mm')}
                         </div>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          booked 
-                            ? 'bg-green-100 text-green-700' 
-                            : 'bg-blue-100 text-blue-700'
-                        }`}>
-                          {booked ? '予約済み' : '予約可'}
+                        <span
+                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            booked
+                              ? 'bg-green-100 text-green-700'
+                              : isPastSlot
+                              ? 'bg-gray-200 text-gray-600'
+                              : 'bg-blue-100 text-blue-700'
+                          }`}
+                        >
+                          {booked ? '予約済み' : isPastSlot ? '終了' : '予約可'}
                         </span>
                       </div>
-                      <button
-                        onClick={() => handleDeleteSlot(slot.id)}
-                        className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
+
+                      {!booked && !isPastSlot && (
+                        <button
+                          onClick={() => handleDeleteSlot(slot.id)}
+                          className="mt-3 sm:mt-0 self-end sm:self-auto px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                        >
+                          この枠を削除
+                        </button>
+                      )}
+
+                      {(booked || isPastSlot) && (
+                        <div className="mt-3 sm:mt-0 self-end sm:self-auto text-xs text-gray-500">
+                          {booked ? '予約済みの枠は削除できません' : '終了した枠です'}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
