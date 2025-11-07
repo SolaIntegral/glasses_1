@@ -20,46 +20,93 @@ export const createNotification = async (
   title: string,
   message: string,
   type: 'booking' | 'cancellation' | 'reminder' | 'system',
-  bookingId?: string
+  bookingId?: string,
+  linkUrl?: string
 ): Promise<string> => {
-  const notificationData = {
-    userId,
-    title,
-    message,
-    type,
-    bookingId: bookingId || null,
-    isRead: false,
-    createdAt: Timestamp.now(),
-    updatedAt: Timestamp.now(),
-  };
+  try {
+    const notificationData = {
+      userId,
+      title,
+      message,
+      type,
+      bookingId: bookingId || null,
+      linkUrl: linkUrl || null,
+      isRead: false,
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
+    };
 
-  const docRef = await addDoc(collection(db, 'notifications'), notificationData);
-  return docRef.id;
+    console.log('Creating notification:', { userId, title, type });
+    const docRef = await addDoc(collection(db, 'notifications'), notificationData);
+    console.log('Notification created successfully:', docRef.id);
+    return docRef.id;
+  } catch (error) {
+    console.error('Error creating notification:', error);
+    throw error;
+  }
 };
 
 // ユーザーの通知一覧取得（Firestore版）
 export const getNotificationsByUser = async (userId: string): Promise<Notification[]> => {
-  const q = query(
-    collection(db, 'notifications'),
-    where('userId', '==', userId),
-    orderBy('createdAt', 'desc')
-  );
-  
-  const querySnapshot = await getDocs(q);
-  return querySnapshot.docs.map(doc => {
-    const data = doc.data();
-    return {
-      id: doc.id,
-      userId: data.userId,
-      title: data.title,
-      message: data.message,
-      type: data.type,
-      bookingId: data.bookingId,
-      isRead: data.isRead,
-      createdAt: data.createdAt.toDate(),
-      updatedAt: data.updatedAt.toDate(),
-    } as Notification;
-  });
+  try {
+    console.log('Fetching notifications for user:', userId);
+    const q = query(
+      collection(db, 'notifications'),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    console.log(`Found ${querySnapshot.size} notifications for user ${userId}`);
+    
+    const notifications = querySnapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        userId: data.userId,
+        title: data.title,
+        message: data.message,
+        type: data.type,
+        bookingId: data.bookingId,
+        linkUrl: data.linkUrl,
+        isRead: data.isRead,
+        createdAt: data.createdAt.toDate(),
+        updatedAt: data.updatedAt.toDate(),
+      } as Notification;
+    });
+    
+    return notifications;
+  } catch (error) {
+    console.error('Error fetching notifications:', error);
+    // インデックスエラーの場合は、orderByなしで再試行
+    if (error instanceof Error && error.message.includes('index')) {
+      console.log('Retrying without orderBy due to index error');
+      const q = query(
+        collection(db, 'notifications'),
+        where('userId', '==', userId)
+      );
+      const querySnapshot = await getDocs(q);
+      const notifications = querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          userId: data.userId,
+          title: data.title,
+          message: data.message,
+          type: data.type,
+          bookingId: data.bookingId,
+          linkUrl: data.linkUrl,
+          isRead: data.isRead,
+          createdAt: data.createdAt.toDate(),
+          updatedAt: data.updatedAt.toDate(),
+        } as Notification;
+      });
+      // クライアント側でソート
+      notifications.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      return notifications;
+    }
+    throw error;
+  }
 };
 
 // 通知を既読にする（Firestore版）
@@ -99,34 +146,82 @@ export const deleteAllNotifications = async (userId: string): Promise<void> => {
   await Promise.all(deletePromises);
 };
 
-// GAS経由でSlack通知を送信する関数
-const sendSlackNotificationViaGAS = async (data: {
-  type: 'booking' | 'cancellation';
-  instructorId: string;
-  instructorSlackMemberId?: string;
-  studentName: string;
-  startTime: string;
-  meetingUrl?: string;
-}) => {
-  try {
-    // GAS Webhook URL（環境変数または固定値）
-    const GAS_WEBHOOK_URL = process.env.NEXT_PUBLIC_GAS_WEBHOOK_URL || 
-      'https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec';
-
-    const response = await fetch(GAS_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-
-    return await response.json();
-  } catch (error) {
-    console.error('Failed to send Slack notification via GAS:', error);
-    return { success: false, error };
-  }
+// すべての通知を取得（管理画面用）
+export const getAllNotifications = async (): Promise<Notification[]> => {
+  const q = query(
+    collection(db, 'notifications'),
+    orderBy('createdAt', 'desc')
+  );
+  
+  const querySnapshot = await getDocs(q);
+  return querySnapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      userId: data.userId,
+      title: data.title,
+      message: data.message,
+      type: data.type,
+      bookingId: data.bookingId,
+      linkUrl: data.linkUrl,
+      isRead: data.isRead,
+      createdAt: data.createdAt.toDate(),
+      updatedAt: data.updatedAt.toDate(),
+    } as Notification;
+  });
 };
 
-// 予約通知を作成し、Slack通知も送信
+// システム通知をタイトルでグループ化（管理画面用）
+export interface NotificationGroup {
+  title: string;
+  message: string;
+  linkUrl?: string;
+  createdAt: Date;
+  targetCount: number;
+  targetUserIds: string[];
+  studentCount?: number;
+  totalStudentCount?: number;
+  isAllStudents?: boolean;
+}
+
+export const getSystemNotificationGroups = async (): Promise<NotificationGroup[]> => {
+  const allNotifications = await getAllNotifications();
+  
+  // システム通知のみをフィルタリング
+  const systemNotifications = allNotifications.filter(n => n.type === 'system');
+  
+  // タイトルとメッセージでグループ化
+  const groups = new Map<string, NotificationGroup>();
+  
+  systemNotifications.forEach(notification => {
+    const key = `${notification.title}|${notification.message}|${notification.linkUrl || ''}`;
+    
+    if (groups.has(key)) {
+      const group = groups.get(key)!;
+      group.targetCount++;
+      if (!group.targetUserIds.includes(notification.userId)) {
+        group.targetUserIds.push(notification.userId);
+      }
+      // より新しい日付を保持
+      if (notification.createdAt > group.createdAt) {
+        group.createdAt = notification.createdAt;
+      }
+    } else {
+      groups.set(key, {
+        title: notification.title,
+        message: notification.message,
+        linkUrl: notification.linkUrl,
+        createdAt: notification.createdAt,
+        targetCount: 1,
+        targetUserIds: [notification.userId],
+      });
+    }
+  });
+  
+  return Array.from(groups.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+};
+
+// 予約通知を作成（Firestoreに通知を作成のみ。Slack通知はFirebase Functionsで自動送信）
 export const createBookingNotificationWithSlack = async (
   instructorId: string,
   instructorSlackMemberId: string | undefined,
@@ -138,6 +233,7 @@ export const createBookingNotificationWithSlack = async (
   meetingUrl?: string
 ): Promise<string> => {
   // Firestoreに通知を作成
+  // 注意: Slack通知はFirebase FunctionsのonCreateBookingトリガーで自動送信されます
   const notificationId = await createNotification(
     instructorId,
     title,
@@ -146,28 +242,10 @@ export const createBookingNotificationWithSlack = async (
     bookingId
   );
 
-  // Slack通知も送信（slackMemberIdが設定されている場合）
-  if (instructorSlackMemberId) {
-    await sendSlackNotificationViaGAS({
-      type: 'booking',
-      instructorId,
-      instructorSlackMemberId,
-      studentName,
-      startTime: startTime.toLocaleString('ja-JP', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      }),
-      meetingUrl
-    });
-  }
-
   return notificationId;
 };
 
-// キャンセル通知を作成し、Slack通知も送信
+// キャンセル通知を作成（Firestoreに通知を作成のみ。Slack通知はFirebase Functionsで自動送信）
 export const createCancellationNotificationWithSlack = async (
   instructorId: string,
   instructorSlackMemberId: string | undefined,
@@ -178,6 +256,7 @@ export const createCancellationNotificationWithSlack = async (
   studentName: string
 ): Promise<string> => {
   // Firestoreに通知を作成
+  // 注意: Slack通知はFirebase FunctionsのonUpdateBookingトリガーで自動送信されます
   const notificationId = await createNotification(
     instructorId,
     title,
@@ -185,23 +264,6 @@ export const createCancellationNotificationWithSlack = async (
     'cancellation',
     bookingId
   );
-
-  // Slack通知も送信（slackMemberIdが設定されている場合）
-  if (instructorSlackMemberId) {
-    await sendSlackNotificationViaGAS({
-      type: 'cancellation',
-      instructorId,
-      instructorSlackMemberId,
-      studentName,
-      startTime: startTime.toLocaleString('ja-JP', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-    });
-  }
 
   return notificationId;
 };

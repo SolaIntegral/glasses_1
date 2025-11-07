@@ -4,65 +4,34 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
-
-interface Notification {
-  id: string;
-  title: string;
-  content: string;
-  type: 'system' | 'survey' | 'maintenance' | 'general';
-  createdAt: Date;
-  isRead: boolean;
-  url?: string;
-}
+import { useAuth } from '@/hooks/useAuth';
+import { getNotificationsByUser, markNotificationAsRead } from '@/lib/firebase/notifications';
+import { Notification } from '@/types';
+import Loading from '@/components/ui/Loading';
 
 export default function NotificationsPage() {
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // モックデータを生成
-    const mockNotifications: Notification[] = [
-      {
-        id: '1',
-        title: 'システムメンテナンスのお知らせ',
-        content: '12月25日 2:00-4:00にシステムメンテナンスを実施いたします。',
-        type: 'maintenance',
-        createdAt: new Date('2024-12-20'),
-        isRead: false,
-      },
-      {
-        id: '2',
-        title: 'アンケートへのご協力のお願い',
-        content: 'サービスの改善のため、アンケートにご協力ください。',
-        type: 'survey',
-        createdAt: new Date('2024-12-19'),
-        isRead: false,
-        url: 'https://forms.example.com/survey',
-      },
-      {
-        id: '3',
-        title: '新機能の追加について',
-        content: '予約システムに新機能が追加されました。',
-        type: 'system',
-        createdAt: new Date('2024-12-18'),
-        isRead: true,
-      },
-      {
-        id: '4',
-        title: '年末年始の営業について',
-        content: '12月29日〜1月3日は営業をお休みさせていただきます。',
-        type: 'general',
-        createdAt: new Date('2024-12-15'),
-        isRead: true,
-      },
-    ];
+    const fetchNotifications = async () => {
+      if (!user) return;
+      
+      try {
+        const data = await getNotificationsByUser(user.uid);
+        // 日付順でソート（新しい順）
+        data.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        setNotifications(data);
+      } catch (error) {
+        console.error('Error fetching notifications:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    // 日付順でソート（新しい順）
-    mockNotifications.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
-    
-    setNotifications(mockNotifications);
-    setLoading(false);
-  }, []);
+    fetchNotifications();
+  }, [user]);
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -74,19 +43,27 @@ export default function NotificationsPage() {
             </svg>
           </div>
         );
-      case 'survey':
+      case 'booking':
         return (
           <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
             <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </div>
         );
-      case 'maintenance':
+      case 'cancellation':
+        return (
+          <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+            <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+        );
+      case 'reminder':
         return (
           <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center">
             <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
         );
@@ -101,29 +78,30 @@ export default function NotificationsPage() {
     }
   };
 
-  const handleNotificationClick = (notification: Notification) => {
-    if (notification.url) {
-      window.open(notification.url, '_blank');
+  const handleNotificationClick = async (notification: Notification) => {
+    if (notification.linkUrl) {
+      window.open(notification.linkUrl, '_blank');
     }
     
     // 未読を既読にマーク
     if (!notification.isRead) {
-      setNotifications(prev => 
-        prev.map(n => 
-          n.id === notification.id 
-            ? { ...n, isRead: true }
-            : n
-        )
-      );
+      try {
+        await markNotificationAsRead(notification.id);
+        setNotifications(prev => 
+          prev.map(n => 
+            n.id === notification.id 
+              ? { ...n, isRead: true }
+              : n
+          )
+        );
+      } catch (error) {
+        console.error('Error marking notification as read:', error);
+      }
     }
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <Loading />;
   }
 
   return (
@@ -180,7 +158,7 @@ export default function NotificationsPage() {
                     </div>
                     
                     <p className="text-sm text-gray-600 mb-2 line-clamp-2">
-                      {notification.content}
+                      {notification.message}
                     </p>
                     
                     <div className="flex items-center justify-between">
@@ -188,7 +166,7 @@ export default function NotificationsPage() {
                         {format(notification.createdAt, 'yyyy年M月d日', { locale: ja })}
                       </span>
                       
-                      {notification.url && (
+                      {notification.linkUrl && (
                         <span className="text-xs text-blue-600 font-medium">
                           詳細を見る →
                         </span>

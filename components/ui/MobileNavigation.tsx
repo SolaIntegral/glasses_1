@@ -3,14 +3,38 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { useState, useEffect } from 'react';
+import { getUnreadNotificationCount } from '@/lib/firebase/notifications';
 
 export default function MobileNavigation() {
   const pathname = usePathname();
   const { user } = useAuth();
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const isActive = (path: string) => {
     return pathname === path;
   };
+
+  // 未読通知数を取得（生徒のみ）
+  useEffect(() => {
+    if (user && user.role === 'student') {
+      const fetchUnreadCount = async () => {
+        try {
+          const count = await getUnreadNotificationCount(user.uid);
+          setUnreadCount(count);
+        } catch (error) {
+          console.error('Error fetching unread notification count:', error);
+        }
+      };
+      fetchUnreadCount();
+      
+      // 定期的に更新（10秒ごと）
+      const interval = setInterval(fetchUnreadCount, 10000);
+      return () => clearInterval(interval);
+    } else {
+      setUnreadCount(0);
+    }
+  }, [user, pathname]); // pathnameを依存配列に追加して、ページ遷移時に再取得
 
   if (!user) return null;
 
@@ -74,13 +98,16 @@ export default function MobileNavigation() {
           {/* 通知 */}
           <Link
             href="/student/notifications"
-            className={`flex flex-col items-center py-2 px-3 ${
+            className={`flex flex-col items-center py-2 px-3 relative ${
               isActive('/student/notifications') ? 'text-blue-600' : 'text-gray-500'
             }`}
           >
             <svg className="w-5 h-5 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
             </svg>
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-2 w-2 h-2 bg-red-500 rounded-full"></span>
+            )}
             <span className="text-xs font-medium">通知</span>
           </Link>
         </div>

@@ -25,6 +25,8 @@ export interface Instructor {
   isActive: boolean;
   // MVP要件で追加
   meetingUrl?: string; // 面談用URL
+  calendarId?: string; // GoogleカレンダーID（メールアドレスまたはカレンダーID）
+  email?: string; // 講師のメールアドレス
   gender?: string; // 性別
   currentIndustry?: string; // 現在の業界
   currentOccupation?: string; // 現在の業種
@@ -118,6 +120,9 @@ export interface Booking {
   cancelReason?: string;
   meetingUrl?: string;
   consultationText?: string;
+  // Googleカレンダー連携
+  googleCalendarEventId?: string;
+  googleCalendarLink?: string;
 }
 
 // 講師と講師詳細を結合したデータ
@@ -182,7 +187,7 @@ export interface Notification {
   message: string;
   type: 'booking' | 'cancellation' | 'reminder' | 'system';
   bookingId?: string;
-  link?: string;
+  linkUrl?: string;
   isRead: boolean;
   createdAt: Date;
   updatedAt: Date;
