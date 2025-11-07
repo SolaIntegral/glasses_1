@@ -14,7 +14,7 @@ import {
 import { db } from './config';
 import { Booking, AvailableSlot, SessionType } from '@/types';
 
-// 予約作成（24時間チェック付き・Firestore版）
+// 予約作成（2時間チェック付き・Firestore版）
 export const createBooking = async (
   instructorId: string,
   studentId: string,
@@ -26,12 +26,12 @@ export const createBooking = async (
   sessionType?: SessionType,
   questionsBeforeSession?: string[]
 ): Promise<string> => {
-  // 24時間以上先かチェック
+  // 2時間以上先かチェック
   const now = new Date();
   const hoursDiff = (startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-  if (hoursDiff < 24) {
-    throw new Error('予約は24時間以上前に行う必要があります');
+  if (hoursDiff < 2) {
+    throw new Error('予約は2時間以上前に行う必要があります');
   }
 
   // 空き時間が存在し、予約されていないかチェック
