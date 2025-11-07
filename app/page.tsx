@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import Link from 'next/link';
@@ -9,34 +9,33 @@ export default function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [redirecting, setRedirecting] = useState(false);
-  const hasRedirected = useRef(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
-    // 既にリダイレクト済みの場合は何もしない
-    if (hasRedirected.current) {
-      return;
-    }
-
-    // ローディング中は何もしない
     if (loading) {
       return;
     }
 
-    // ユーザーがログインしていない場合は何もしない
-    if (!user) {
-      return;
-    }
-
-    // 既にダッシュボードエリアにいる場合はリダイレクトしない
     const dashboardPaths = ['/admin', '/instructor', '/student'];
-    if (dashboardPaths.some(path => pathname.startsWith(path))) {
+    const isInDashboardArea = dashboardPaths.some(path => pathname.startsWith(path));
+
+    if (!user) {
+      if (isRedirecting) {
+        setIsRedirecting(false);
+      }
       return;
     }
 
-    // リダイレクトを実行
-    hasRedirected.current = true;
-    setRedirecting(true);
+    if (isInDashboardArea) {
+      if (isRedirecting) {
+        setIsRedirecting(false);
+      }
+      return;
+    }
+
+    if (!isRedirecting) {
+      setIsRedirecting(true);
+    }
 
     if (user.role === 'admin') {
       router.replace('/admin/dashboard');
@@ -45,10 +44,10 @@ export default function Home() {
     } else {
       router.replace('/student/dashboard');
     }
-  }, [user, loading, router, pathname]);
+  }, [user, loading, router, pathname, isRedirecting]);
 
   // ローディング中またはリダイレクト中
-  if (loading || redirecting) {
+  if (loading || isRedirecting) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
