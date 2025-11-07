@@ -145,7 +145,7 @@ export default function InstructorBookingsPage() {
                       </div>
                       <div className="ml-4 flex flex-col space-y-2">
                         <Link
-                          href={`/instructor/bookings/${booking.id}`}
+                          href={`/instructor/bookings/detail?id=${booking.id}`}
                           className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors text-center"
                         >
                           詳細
