@@ -17,7 +17,7 @@ export default function AvailabilityPage() {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('list');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -95,6 +95,58 @@ export default function AvailabilityPage() {
     });
   }, [slots]);
 
+  // グループ化したリスト表示用データ
+  const groupedSlots = useMemo(() => {
+    type SlotGroup = { date: Date; slots: typeof slots };
+    const groups = new Map<string, SlotGroup>();
+
+    sortedSlots.forEach((slot) => {
+      const startTime = slot.startTime instanceof Date ? slot.startTime : new Date(slot.startTime);
+      const groupKey = format(startTime, 'yyyy-MM-dd');
+
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, {
+          date: startOfDay(startTime),
+          slots: [],
+        });
+      }
+
+      groups.get(groupKey)!.slots.push(slot);
+    });
+
+    return Array.from(groups.values()).sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [sortedSlots]);
+
+  const upcomingSlotCount = useMemo(() => {
+    const now = new Date();
+    return sortedSlots.filter(slot => {
+      const endTime = slot.endTime instanceof Date ? slot.endTime : new Date(slot.endTime);
+      return endTime.getTime() >= now.getTime();
+    }).length;
+  }, [sortedSlots]);
+
+  // 初期選択日（最も近い未来の枠 or 最終枠の日）
+  useEffect(() => {
+    if (loading) return;
+
+    if (sortedSlots.length === 0) {
+      setSelectedDate(null);
+      return;
+    }
+
+    const now = new Date();
+    const upcoming = sortedSlots.find(slot => {
+      const startTime = slot.startTime instanceof Date ? slot.startTime : new Date(slot.startTime);
+      return startTime.getTime() >= now.getTime();
+    }) ?? sortedSlots[sortedSlots.length - 1];
+
+    const upcomingDate = startOfDay(upcoming.startTime instanceof Date ? upcoming.startTime : new Date(upcoming.startTime));
+
+    if (!selectedDate || !isSameDay(selectedDate, upcomingDate)) {
+      setSelectedDate(upcomingDate);
+    }
+  }, [loading, sortedSlots, selectedDate]);
+
   if (loading) {
     return <Loading />;
   }
@@ -143,28 +195,20 @@ export default function AvailabilityPage() {
           </div>
         )}
 
-        {/* 表示モード切り替え */}
+        {/* サマリー */}
         <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <div className="flex items-center justify-center gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-gray-900">登録済みの予約枠</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                現在 {sortedSlots.length} 枠（うち今後の枠 {upcomingSlotCount} 件）が登録されています。
+              </p>
+            </div>
             <button
-              onClick={() => setViewMode('calendar')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                viewMode === 'calendar'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              onClick={() => setViewMode(prev => prev === 'calendar' ? 'list' : 'calendar')}
+              className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
             >
-              カレンダー表示
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                viewMode === 'list'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              リスト表示
+              {viewMode === 'calendar' ? 'リスト表示に切り替え' : 'カレンダー表示に切り替え'}
             </button>
           </div>
         </div>
@@ -285,65 +329,70 @@ export default function AvailabilityPage() {
           <div className="bg-white rounded-lg shadow p-4 mb-20">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">登録済みの予約枠一覧</h3>
 
-            {sortedSlots.length === 0 ? (
-              <div className="text-center py-8">
+            {groupedSlots.length === 0 ? (
+              <div className="text-center py-12">
                 <p className="text-gray-600 mb-2">まだ予約枠が登録されていません。</p>
                 <p className="text-gray-500 text-sm">「新しい予約枠を追加する」から枠を作成してください。</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {sortedSlots.map((slot) => {
-                  const startTime = slot.startTime instanceof Date ? slot.startTime : new Date(slot.startTime);
-                  const endTime = slot.endTime instanceof Date ? slot.endTime : new Date(slot.endTime);
-                  const booked = isSlotBooked(slot.id);
-                  const isPastSlot = endTime < today;
+              <div className="space-y-6">
+                {groupedSlots.map(group => {
+                  const dateLabel = format(group.date, 'yyyy年M月d日(E)', { locale: ja });
+                  const isPastDate = group.date.getTime() < startOfDay(today).getTime();
 
                   return (
-                    <div
-                      key={slot.id}
-                      className={`flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 border rounded-lg ${
-                        booked
-                          ? 'border-green-200 bg-green-50'
-                          : isPastSlot
-                          ? 'border-gray-200 bg-gray-100'
-                          : 'border-gray-200 bg-white'
-                      }`}
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-2 sm:space-y-0">
-                        <div className="text-sm text-gray-600">
-                          {format(startTime, 'yyyy年M月d日(E)', { locale: ja })}
-                        </div>
-                        <div className="font-medium text-gray-900">
-                          {format(startTime, 'HH:mm')}〜{format(endTime, 'HH:mm')}
-                        </div>
-                        <span
-                          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            booked
-                              ? 'bg-green-100 text-green-700'
-                              : isPastSlot
-                              ? 'bg-gray-200 text-gray-600'
-                              : 'bg-blue-100 text-blue-700'
-                          }`}
-                        >
-                          {booked ? '予約済み' : isPastSlot ? '終了' : '予約可'}
-                        </span>
+                    <section key={dateLabel} className="border border-gray-200 rounded-lg">
+                      <header className={`px-4 py-3 border-b text-sm font-medium ${isPastDate ? 'bg-gray-100 text-gray-600' : 'bg-blue-50 text-blue-700'}`}>
+                        {dateLabel}
+                        <span className="ml-2 text-xs text-gray-500">（{group.slots.length}件）</span>
+                      </header>
+
+                      <div className="divide-y divide-gray-100">
+                        {group.slots.map(slot => {
+                          const startTime = slot.startTime instanceof Date ? slot.startTime : new Date(slot.startTime);
+                          const endTime = slot.endTime instanceof Date ? slot.endTime : new Date(slot.endTime);
+                          const booked = isSlotBooked(slot.id);
+                          const isPastSlot = endTime < today;
+
+                          return (
+                            <div
+                              key={slot.id}
+                              className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-4 py-3"
+                            >
+                              <div className="flex items-center space-x-3">
+                                <div className="text-base font-semibold text-gray-900">
+                                  {format(startTime, 'HH:mm')}〜{format(endTime, 'HH:mm')}
+                                </div>
+                                <span
+                                  className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                                    booked
+                                      ? 'bg-green-100 text-green-700'
+                                      : isPastSlot
+                                      ? 'bg-gray-200 text-gray-600'
+                                      : 'bg-blue-100 text-blue-700'
+                                  }`}
+                                >
+                                  {booked ? '予約済み' : isPastSlot ? '終了' : '予約可'}
+                                </span>
+                              </div>
+
+                              <div className="mt-3 sm:mt-0 flex flex-col sm:flex-row sm:items-center sm:space-x-3 text-sm text-gray-500">
+                                {booked && <span>予約済みの枠は削除できません</span>}
+                                {!booked && isPastSlot && <span>終了した枠です</span>}
+                                {!booked && !isPastSlot && (
+                                  <button
+                                    onClick={() => handleDeleteSlot(slot.id)}
+                                    className="self-start sm:self-auto px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                                  >
+                                    この枠を削除
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-
-                      {!booked && !isPastSlot && (
-                        <button
-                          onClick={() => handleDeleteSlot(slot.id)}
-                          className="mt-3 sm:mt-0 self-end sm:self-auto px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-                        >
-                          この枠を削除
-                        </button>
-                      )}
-
-                      {(booked || isPastSlot) && (
-                        <div className="mt-3 sm:mt-0 self-end sm:self-auto text-xs text-gray-500">
-                          {booked ? '予約済みの枠は削除できません' : '終了した枠です'}
-                        </div>
-                      )}
-                    </div>
+                    </section>
                   );
                 })}
               </div>
