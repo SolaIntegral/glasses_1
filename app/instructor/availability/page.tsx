@@ -7,7 +7,7 @@ import { getAvailableSlotsByInstructor, deleteAvailableSlot } from '@/lib/fireba
 import { getBookingsByInstructor } from '@/lib/firebase/bookings';
 import { AvailableSlot, Booking } from '@/types';
 import Loading from '@/components/ui/Loading';
-import { format, isSameDay } from 'date-fns';
+import { format, isSameDay, startOfDay } from 'date-fns';
 import { ja } from 'date-fns/locale';
 
 export default function AvailabilityPage() {
@@ -92,14 +92,29 @@ export default function AvailabilityPage() {
 
   // 今月の日付を生成
   const today = new Date();
+  const todayStartOfDay = startOfDay(today);
   const currentMonth = today.getMonth();
   const currentYear = today.getFullYear();
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   
-  const days = Array.from({ length: daysInMonth }, (_, i) => {
-    const date = new Date(currentYear, currentMonth, i + 1);
-    return date;
-  }).filter(date => date >= today);
+  // 月の最初の日を取得
+  const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
+  // 月の最初の日の曜日を取得（0=日曜日、1=月曜日、...、6=土曜日）
+  const firstDayOfWeek = firstDayOfMonth.getDay();
+  
+  // カレンダー表示用の配列（最初の日の前の空セル + 日付）
+  const calendarDays: (Date | null)[] = [];
+  
+  // 最初の日の前の空セルを追加
+  for (let i = 0; i < firstDayOfWeek; i++) {
+    calendarDays.push(null);
+  }
+  
+  // 全ての日付を生成して追加
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(currentYear, currentMonth, day);
+    calendarDays.push(date);
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
@@ -134,9 +149,15 @@ export default function AvailabilityPage() {
             ))}
             
             {/* 日付 */}
-            {days.map((date, index) => {
+            {calendarDays.map((date, index) => {
+              if (date === null) {
+                // 空セル
+                return <div key={`empty-${index}`} className="p-2"></div>;
+              }
+              
               const daySlots = getSlotsForDate(date);
               const hasBookedSlots = daySlots.some(slot => isSlotBooked(slot.id));
+              const isPast = date < todayStartOfDay;
               
               return (
                 <button
@@ -144,18 +165,20 @@ export default function AvailabilityPage() {
                   onClick={() => handleDateSelect(date)}
                   className={`
                     relative p-2 text-sm rounded-lg transition-colors
-                    ${selectedDate && isSameDay(date, selectedDate)
+                    ${isPast
+                      ? 'text-gray-300 cursor-not-allowed'
+                      : selectedDate && isSameDay(date, selectedDate)
                       ? 'bg-blue-600 text-white'
                       : hasSlots(date)
                       ? hasBookedSlots
                         ? 'bg-green-50 text-green-700 hover:bg-green-100'
                         : 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                      : 'text-gray-400 hover:bg-gray-50'
+                      : 'text-gray-700 hover:bg-gray-50'
                     }
                   `}
                 >
                   {format(date, 'd')}
-                  {hasSlots(date) && (
+                  {!isPast && hasSlots(date) && (
                     <div className={`absolute bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 rounded-full ${
                       hasBookedSlots ? 'bg-green-500' : 'bg-blue-500'
                     }`}></div>

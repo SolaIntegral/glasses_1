@@ -20,12 +20,11 @@ export const createAvailableSlot = async (
   startTime: Date,
   endTime: Date
 ): Promise<string> => {
-  // 24時間以上先かチェック
+  // 過去の日時でないかチェック
   const now = new Date();
-  const minBookingTime = new Date(now.getTime() + 24 * 60 * 60 * 1000);
   
-  if (startTime < minBookingTime) {
-    throw new Error('空き時間は24時間以上先に設定してください');
+  if (startTime < now) {
+    throw new Error('過去の日時は設定できません');
   }
 
   const slotData = {
