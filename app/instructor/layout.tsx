@@ -28,6 +28,11 @@ export default function InstructorLayout({
     }
 
     if (!user) {
+      const hasSession = typeof window !== 'undefined' ? localStorage.getItem('sessionId') : null;
+      if (hasSession) {
+        // セッションは存在するがユーザー情報の取得が完了していない場合は待機
+        return;
+      }
       router.replace('/auth/login');
       return;
     }
@@ -49,7 +54,11 @@ export default function InstructorLayout({
     return <Loading />;
   }
 
-  if (!user || user.role !== 'instructor') {
+  if (!user) {
+    return <Loading />;
+  }
+
+  if (user.role !== 'instructor') {
     return <Loading />;
   }
 

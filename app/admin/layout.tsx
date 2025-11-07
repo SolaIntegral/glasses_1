@@ -27,7 +27,16 @@ export default function AdminLayout({
     }
 
     // ユーザーがログインしていない、または管理者でない場合はログインページにリダイレクト
-    if (!user || user.role !== 'admin') {
+    if (!user) {
+      const hasSession = typeof window !== 'undefined' ? localStorage.getItem('sessionId') : null;
+      if (hasSession) {
+        return;
+      }
+      router.replace('/auth/login');
+      return;
+    }
+
+    if (user.role !== 'admin') {
       router.replace('/auth/login');
       return;
     }
@@ -40,7 +49,11 @@ export default function AdminLayout({
 
   // ユーザーがログインしていない、または管理者でない場合はローディング画面を表示
   // （リダイレクトが完了するまで）
-  if (!user || user.role !== 'admin') {
+  if (!user) {
+    return <Loading />;
+  }
+
+  if (user.role !== 'admin') {
     return <Loading />;
   }
 

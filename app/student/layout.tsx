@@ -28,6 +28,10 @@ export default function StudentLayout({
     }
 
     if (!user) {
+      const hasSession = typeof window !== 'undefined' ? localStorage.getItem('sessionId') : null;
+      if (hasSession) {
+        return;
+      }
       router.replace('/auth/login');
       return;
     }
@@ -49,7 +53,11 @@ export default function StudentLayout({
     return <Loading />;
   }
 
-  if (!user || user.role !== 'student') {
+  if (!user) {
+    return <Loading />;
+  }
+
+  if (user.role !== 'student') {
     return <Loading />;
   }
 
