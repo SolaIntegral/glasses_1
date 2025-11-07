@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { getInstructor, getInstructorByDocId, updateInstructor } from '@/lib/firebase/instructors';
 import { Instructor, Education, WorkHistory } from '@/types';
@@ -13,6 +13,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 function InstructorProfileContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
   const { user, signOut } = useAuth();
   const [targetUserId, setTargetUserId] = useState<string | null>(null);
   const [isAdminMode, setIsAdminMode] = useState(false);
@@ -39,17 +40,24 @@ function InstructorProfileContent() {
   const [uploadingImage, setUploadingImage] = useState(false);
 
   useEffect(() => {
-    // URLパラメータを確認
+    if (isAdminMode && targetUserId) {
+      return;
+    }
+
     const admin = searchParams.get('admin');
     const uid = searchParams.get('uid');
-    const instructorDocId = searchParams.get('instructorDocId');
-    
+
     if (admin === 'true' && uid) {
       setIsAdminMode(true);
       setTargetUserId(uid);
-      // instructorDocIdも保持（必要に応じて使用）
+      return;
     }
-  }, [searchParams]);
+
+    if (pathname?.startsWith('/admin/instructors') && uid) {
+      setIsAdminMode(true);
+      setTargetUserId(uid);
+    }
+  }, [searchParams, pathname, isAdminMode, targetUserId]);
 
   useEffect(() => {
     const fetchInstructor = async () => {
