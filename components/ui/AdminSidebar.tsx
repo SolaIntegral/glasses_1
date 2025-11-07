@@ -15,7 +15,7 @@ export default function AdminSidebar() {
   const handleLogout = async () => {
     if (confirm('ログアウトしますか？')) {
       await signOut();
-      window.location.href = '/auth/login';
+      window.location.href = '/';
     }
   };
 

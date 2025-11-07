@@ -201,7 +201,7 @@ function InstructorProfileContent() {
 
     try {
       await signOut();
-      router.push('/auth/login');
+      router.push('/');
     } catch (err) {
       console.error('Error logging out:', err);
       setError('ログアウトに失敗しました');
