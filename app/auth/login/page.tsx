@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
+import { usePerformanceMonitor } from '@/hooks/usePerformanceMonitor';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,6 +12,30 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [reason, setReason] = useState('');
+  usePerformanceMonitor('auth-login', { thresholdMs: 2000 });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raw = sessionStorage.getItem('pendingRedirect');
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed?.timestamp && Date.now() - parsed.timestamp < 5 * 60 * 1000) {
+        if (parsed.role) {
+          setReason(
+            parsed.reason === 'wrong-role'
+              ? '別の権限のページにアクセスしたため、改めてログインが必要です。'
+              : 'ログイン状態が確認できなかったため、再度ログインしてください。'
+          );
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to parse pendingRedirect', err);
+    } finally {
+      sessionStorage.removeItem('pendingRedirect');
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     console.log('handleSubmit called', e.type);
@@ -53,6 +78,12 @@ export default function LoginPage() {
           <h1 className="text-2xl sm:text-3xl font-bold text-center text-gray-900 mb-6 sm:mb-8">
             ログイン
           </h1>
+
+          {reason && (
+            <div className="bg-blue-50 border border-blue-200 text-blue-700 px-3 sm:px-4 py-3 rounded mb-4 text-sm sm:text-base">
+              {reason}
+            </div>
+          )}
 
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-3 sm:px-4 py-3 rounded mb-4 text-sm sm:text-base">

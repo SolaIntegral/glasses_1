@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import MobileHeader from '@/components/ui/MobileHeader';
 import MobileNavigation from '@/components/ui/MobileNavigation';
 import Loading from '@/components/ui/Loading';
+import { usePerformanceMonitor } from '@/hooks/usePerformanceMonitor';
 
 export default function InstructorLayout({
   children,
@@ -15,6 +16,7 @@ export default function InstructorLayout({
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  usePerformanceMonitor('instructor-layout');
 
   useEffect(() => {
     // ローディング中は何もしない
@@ -33,12 +35,24 @@ export default function InstructorLayout({
         // セッションは存在するがユーザー情報の取得が完了していない場合は待機
         return;
       }
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(
+          'pendingRedirect',
+          JSON.stringify({ role: 'instructor', timestamp: Date.now() })
+        );
+      }
       router.replace('/auth/login');
       return;
     }
 
     if (user.role !== 'instructor') {
       // ロールに応じて適切なダッシュボードにリダイレクト
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(
+          'pendingRedirect',
+          JSON.stringify({ role: 'instructor', timestamp: Date.now(), reason: 'wrong-role' })
+        );
+      }
       if (user.role === 'admin') {
         router.replace('/admin/dashboard');
       } else if (user.role === 'student') {

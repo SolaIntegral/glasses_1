@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import MobileHeader from '@/components/ui/MobileHeader';
 import MobileNavigation from '@/components/ui/MobileNavigation';
 import Loading from '@/components/ui/Loading';
+import { usePerformanceMonitor } from '@/hooks/usePerformanceMonitor';
 
 export default function StudentLayout({
   children,
@@ -15,6 +16,7 @@ export default function StudentLayout({
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  usePerformanceMonitor('student-layout');
 
   useEffect(() => {
     // ローディング中は何もしない
@@ -32,6 +34,12 @@ export default function StudentLayout({
       if (hasSession) {
         return;
       }
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(
+          'pendingRedirect',
+          JSON.stringify({ role: 'student', timestamp: Date.now() })
+        );
+      }
       router.replace('/auth/login');
       return;
     }
@@ -39,10 +47,28 @@ export default function StudentLayout({
     if (user.role !== 'student') {
       // ロールに応じて適切なダッシュボードにリダイレクト
       if (user.role === 'admin') {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem(
+            'pendingRedirect',
+            JSON.stringify({ role: 'student', timestamp: Date.now(), reason: 'wrong-role' })
+          );
+        }
         router.replace('/admin/dashboard');
       } else if (user.role === 'instructor') {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem(
+            'pendingRedirect',
+            JSON.stringify({ role: 'student', timestamp: Date.now(), reason: 'wrong-role' })
+          );
+        }
         router.replace('/instructor/dashboard');
       } else {
+        if (typeof window !== 'undefined') {
+          sessionStorage.setItem(
+            'pendingRedirect',
+            JSON.stringify({ role: 'student', timestamp: Date.now(), reason: 'unknown-role' })
+          );
+        }
         router.replace('/auth/login');
       }
       return;

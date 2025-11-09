@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import AdminSidebar from '@/components/ui/AdminSidebar';
 import Loading from '@/components/ui/Loading';
+import { usePerformanceMonitor } from '@/hooks/usePerformanceMonitor';
 
 export default function AdminLayout({
   children,
@@ -14,6 +15,7 @@ export default function AdminLayout({
   const { user, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  usePerformanceMonitor('admin-layout');
 
   useEffect(() => {
     // ローディング中は何もしない
@@ -32,11 +34,23 @@ export default function AdminLayout({
       if (hasSession) {
         return;
       }
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(
+          'pendingRedirect',
+          JSON.stringify({ role: 'admin', timestamp: Date.now(), reason: 'no-session' })
+        );
+      }
       router.replace('/auth/login');
       return;
     }
 
     if (user.role !== 'admin') {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem(
+          'pendingRedirect',
+          JSON.stringify({ role: 'admin', timestamp: Date.now(), reason: 'wrong-role' })
+        );
+      }
       router.replace('/auth/login');
       return;
     }
