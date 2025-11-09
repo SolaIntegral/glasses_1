@@ -6,13 +6,14 @@ import Link from 'next/link';
 import { getBookingById } from '@/lib/firebase/bookings';
 import { getInstructorWithUser } from '@/lib/firebase/instructors';
 import { Booking, InstructorWithUser } from '@/types';
+import Loading from '@/components/ui/Loading';
+import { format } from 'date-fns';
+import { ja } from 'date-fns/locale';
+import { resolveMeetingUrl } from '@/lib/utils/meeting';
 
 interface BookingWithInstructor extends Booking {
   instructor?: InstructorWithUser;
 }
-import Loading from '@/components/ui/Loading';
-import { format } from 'date-fns';
-import { ja } from 'date-fns/locale';
 
 function BookingCompleteContent() {
   const router = useRouter();
@@ -158,7 +159,7 @@ function BookingCompleteContent() {
               <h3 className="text-lg font-semibold text-gray-900 mb-3">MTG URL</h3>
               <div className="bg-gray-100 rounded-lg p-3 mb-3">
                 <p className="text-sm text-gray-700 break-all">
-                  {booking.meetingUrl}
+                  {resolveMeetingUrl(booking.meetingUrl)}
                 </p>
               </div>
               <button
@@ -168,7 +169,7 @@ function BookingCompleteContent() {
                 {copied ? 'コピーしました' : 'URLをコピーする'}
               </button>
               <a
-                href={booking.meetingUrl}
+                href={resolveMeetingUrl(booking.meetingUrl)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="mt-2 block w-full bg-blue-600 text-white py-2 px-4 rounded-lg font-semibold text-sm text-center hover:bg-blue-700 transition-colors"

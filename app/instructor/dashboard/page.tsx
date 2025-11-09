@@ -8,6 +8,7 @@ import { Booking } from '@/types';
 import Loading from '@/components/ui/Loading';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
+import { resolveMeetingUrl } from '@/lib/utils/meeting';
 
 export default function InstructorDashboard() {
   const { user } = useAuth();
@@ -104,7 +105,7 @@ export default function InstructorDashboard() {
               </div>
               {nextBooking.meetingUrl && (
                 <a
-                  href={nextBooking.meetingUrl}
+                  href={resolveMeetingUrl(nextBooking.meetingUrl)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold text-center hover:bg-blue-700 transition-colors"

@@ -6,14 +6,15 @@ import { useAuth } from '@/hooks/useAuth';
 import { getBookingsByStudent } from '@/lib/firebase/bookings';
 import { Booking, InstructorWithUser } from '@/types';
 import { getInstructorWithUser } from '@/lib/firebase/instructors';
-
-interface BookingWithInstructor extends Booking {
-  instructor?: InstructorWithUser;
-}
 import Loading from '@/components/ui/Loading';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
+import { resolveMeetingUrl } from '@/lib/utils/meeting';
+
+interface BookingWithInstructor extends Booking {
+  instructor?: InstructorWithUser;
+}
 
 export default function StudentDashboard() {
   const router = useRouter();
@@ -103,12 +104,16 @@ export default function StudentDashboard() {
                 </svg>
                 <span className="text-gray-700">講師名: {nextBooking.instructor?.user.displayName} 講師</span>
               </div>
-              <Link
-                href={nextBooking.meetingUrl || '#'}
-                className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold text-center hover:bg-blue-700 transition-colors"
-              >
-                MTGに参加する
-              </Link>
+              {nextBooking.meetingUrl && (
+                <a
+                  href={resolveMeetingUrl(nextBooking.meetingUrl)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold text-center hover:bg-blue-700 transition-colors"
+                >
+                  MTGに参加する
+                </a>
+              )}
             </div>
           </div>
         )}

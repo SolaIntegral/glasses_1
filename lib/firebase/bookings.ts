@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './config';
 import { Booking, AvailableSlot, SessionType } from '@/types';
+import { resolveMeetingUrl, getDefaultMeetingUrl } from '@/lib/utils/meeting';
 
 // 予約作成（2時間チェック付き・Firestore版）
 export const createBooking = async (
@@ -66,7 +67,8 @@ export const createBooking = async (
     console.error('Failed to fetch instructor data for meeting URL:', error);
   }
 
-  const instructorMeetingUrl = instructorData?.meetingUrl || '';
+  const defaultMeetingUrl = getDefaultMeetingUrl();
+  const instructorMeetingUrl = resolveMeetingUrl(instructorData?.meetingUrl || defaultMeetingUrl);
 
   // 予約を作成
   const bookingData: any = {

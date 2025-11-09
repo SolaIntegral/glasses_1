@@ -8,6 +8,7 @@ import { Booking } from '@/types';
 import Loading from '@/components/ui/Loading';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
+import { resolveMeetingUrl } from '@/lib/utils/meeting';
 
 export default function InstructorBookingsPage() {
   const { user } = useAuth();
@@ -152,7 +153,7 @@ export default function InstructorBookingsPage() {
                         </Link>
                         {booking.meetingUrl && (
                           <a
-                            href={booking.meetingUrl}
+                            href={resolveMeetingUrl(booking.meetingUrl)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors text-center"

@@ -5,6 +5,7 @@ import { getAllBookings, forceCancelBooking } from '@/lib/firebase/bookings';
 import { Booking } from '@/types';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
+import { resolveMeetingUrl } from '@/lib/utils/meeting';
 
 export default function BookingsMonitoring() {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -111,7 +112,12 @@ export default function BookingsMonitoring() {
                     </td>
                     <td className="px-6 py-4 text-sm text-blue-600">
                       {booking.meetingUrl ? (
-                        <a href={booking.meetingUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">
+                        <a
+                          href={resolveMeetingUrl(booking.meetingUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:underline"
+                        >
                           リンク
                         </a>
                       ) : '-'}

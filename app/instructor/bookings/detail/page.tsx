@@ -8,6 +8,7 @@ import { Booking } from '@/types';
 import Loading from '@/components/ui/Loading';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
+import { resolveMeetingUrl } from '@/lib/utils/meeting';
 
 function BookingDetailContent() {
   const router = useRouter();
@@ -143,12 +144,12 @@ function BookingDetailContent() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">ミーティングリンク</label>
                 <a
-                  href={booking.meetingUrl}
+                  href={resolveMeetingUrl(booking.meetingUrl)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-600 hover:text-blue-700 underline"
+                  className="text-blue-600 hover:text-blue-700 underline break-all"
                 >
-                  {booking.meetingUrl}
+                  {resolveMeetingUrl(booking.meetingUrl)}
                 </a>
               </div>
             )}

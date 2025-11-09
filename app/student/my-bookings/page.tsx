@@ -9,6 +9,7 @@ import Loading from '@/components/ui/Loading';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
+import { resolveMeetingUrl } from '@/lib/utils/meeting';
 
 interface BookingWithInstructor extends Booking {
   instructor?: InstructorWithUser;
@@ -173,7 +174,17 @@ export default function MyBookingsPage() {
                     <div className="flex flex-col space-y-2">
                       {booking.meetingUrl && (
                         <a
-                          href={booking.meetingUrl}
+                          href={resolveMeetingUrl(booking.meetingUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 text-center"
+                        >
+                          MTGに参加する
+                        </a>
+                      )}
+                      {booking.meetingUrl && (
+                        <a
+                          href={resolveMeetingUrl(booking.meetingUrl)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 text-center"
