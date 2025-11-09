@@ -27,6 +27,8 @@ function InstructorDetailContent() {
   const [booking, setBooking] = useState(false);
   const [error, setError] = useState('');
 
+  const BOOKING_LIMIT_HOURS = 0;
+
   const getDrivePreviewUrl = (url: string) => {
     try {
       const parsed = new URL(url);
@@ -348,8 +350,9 @@ function InstructorDetailContent() {
                 const now = new Date();
                 const isPast = slotStartTime <= now;
                 const hoursDiff = (slotStartTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-                // 2時間前を過ぎている場合は選択不可（時間が過ぎていない場合も含む）
-                const isSelectable = !isPast && hoursDiff >= 2;
+                // 制限時間（テスト用に0=無制限）
+                const meetsLimit = BOOKING_LIMIT_HOURS === 0 ? true : hoursDiff >= BOOKING_LIMIT_HOURS;
+                const isSelectable = !isPast && meetsLimit;
                 
                 return (
                   <button
@@ -374,7 +377,9 @@ function InstructorDetailContent() {
                         </p>
                         {!isSelectable && (
                           <p className="text-xs text-gray-400 mt-1">
-                            {isPast ? '時間が過ぎています' : '2時間前までに予約してください'}
+                            {isPast
+                              ? '時間が過ぎています'
+                              : `予約は${BOOKING_LIMIT_HOURS}時間前までです`}
                           </p>
                         )}
                       </div>

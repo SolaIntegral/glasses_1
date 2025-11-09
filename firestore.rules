@@ -42,6 +42,12 @@ service cloud.firestore {
       allow read: if true;
       allow write: if true;
     }
+
+    // アプリログコレクション（全員が読み書き可能）
+    match /appLogs/{logId} {
+      allow read: if true;
+      allow write: if true;
+    }
   }
 }
 
