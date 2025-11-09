@@ -45,6 +45,29 @@ export const createBooking = async (
     throw new Error('この時間は既に予約されています');
   }
 
+  // 講師のミーティングURLを取得
+  let instructorData: any = null;
+  try {
+    const instructorDoc = await getDoc(doc(db, 'instructors', instructorId));
+    if (instructorDoc.exists()) {
+      instructorData = instructorDoc.data();
+    } else {
+      // ドキュメントIDがユーザーIDと異なる旧データ向けフォールバック
+      const instructorQuery = query(
+        collection(db, 'instructors'),
+        where('userId', '==', instructorId)
+      );
+      const instructorQuerySnapshot = await getDocs(instructorQuery);
+      if (!instructorQuerySnapshot.empty) {
+        instructorData = instructorQuerySnapshot.docs[0].data();
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch instructor data for meeting URL:', error);
+  }
+
+  const instructorMeetingUrl = instructorData?.meetingUrl || '';
+
   // 予約を作成
   const bookingData: any = {
     instructorId,
@@ -55,7 +78,7 @@ export const createBooking = async (
     purpose,
     notes: notes || '',
     status: 'confirmed',
-    meetingUrl: 'https://meet.google.com/kdd-mtnd-eyc', // 共通の会議リンク
+    meetingUrl: instructorMeetingUrl,
     createdAt: Timestamp.now(),
     updatedAt: Timestamp.now(),
   };
@@ -81,8 +104,12 @@ export const createBooking = async (
   try {
     const { createBookingNotificationWithSlack } = await import('./notifications');
     // 講師情報を取得（slackMemberIdを含む）
-    const instructorDoc = await getDoc(doc(db, 'instructors', instructorId));
-    const instructorData = instructorDoc.exists() ? instructorDoc.data() : null;
+    if (!instructorData) {
+      const instructorDoc = await getDoc(doc(db, 'instructors', instructorId));
+      if (instructorDoc.exists()) {
+        instructorData = instructorDoc.data();
+      }
+    }
     const instructorSlackMemberId = instructorData?.slackMemberId;
 
     // 生徒情報を取得
@@ -100,7 +127,7 @@ export const createBooking = async (
       bookingRef.id,
       startTime,
       studentName,
-      'https://meet.google.com/kdd-mtnd-eyc'
+      instructorMeetingUrl
     );
   } catch (error) {
     console.error('Failed to create notification:', error);

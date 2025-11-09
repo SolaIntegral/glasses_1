@@ -9,6 +9,7 @@ import Loading from '@/components/ui/Loading';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db, storage } from '@/lib/firebase/config';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { logAppEvent } from '@/lib/firebase/logger';
 
 function InstructorProfileContent() {
   const router = useRouter();
@@ -23,6 +24,7 @@ function InstructorProfileContent() {
   const [bio, setBio] = useState('');
   // MVP要件で追加
   const [meetingUrl, setMeetingUrl] = useState('');
+  const [introVideoUrl, setIntroVideoUrl] = useState('');
   const [gender, setGender] = useState('');
   const [currentIndustry, setCurrentIndustry] = useState('');
   const [currentOccupation, setCurrentOccupation] = useState('');
@@ -77,6 +79,7 @@ function InstructorProfileContent() {
             setSpecialties(instructorData.specialties?.join(', ') || '');
             setBio(instructorData.bio || '');
             setMeetingUrl(instructorData.meetingUrl || '');
+            setIntroVideoUrl(instructorData.introVideoUrl || '');
             setGender(instructorData.gender || '');
             setCurrentIndustry(instructorData.currentIndustry || '');
             setCurrentOccupation(instructorData.currentOccupation || '');
@@ -118,6 +121,7 @@ function InstructorProfileContent() {
           setSpecialties(instructorData.specialties?.join(', ') || '');
           setBio(instructorData.bio || '');
           setMeetingUrl(instructorData.meetingUrl || '');
+          setIntroVideoUrl(instructorData.introVideoUrl || '');
           setGender(instructorData.gender || '');
           setCurrentIndustry(instructorData.currentIndustry || '');
           setCurrentOccupation(instructorData.currentOccupation || '');
@@ -169,6 +173,69 @@ function InstructorProfileContent() {
         .map(s => s.trim())
         .filter(s => s.length > 0);
 
+      const sanitizeEducationEntries = (entries: Education[]): Education[] => {
+        return entries
+          .map((entry) => {
+            const sanitized: Education = {
+              school: (entry.school || '').trim(),
+            };
+
+            if (entry.degree && entry.degree.trim().length > 0) {
+              sanitized.degree = entry.degree.trim();
+            }
+
+            if (entry.field && entry.field.trim().length > 0) {
+              sanitized.field = entry.field.trim();
+            }
+
+            if (typeof entry.graduationYear === 'number' && !Number.isNaN(entry.graduationYear)) {
+              sanitized.graduationYear = entry.graduationYear;
+            }
+
+            if (!sanitized.school && !sanitized.degree && !sanitized.field && sanitized.graduationYear === undefined) {
+              return null;
+            }
+
+            return sanitized;
+          })
+          .filter((entry): entry is Education => entry !== null);
+      };
+
+      const sanitizeWorkHistoryEntries = (entries: WorkHistory[]): WorkHistory[] => {
+        return entries
+          .map((entry) => {
+            const sanitized: WorkHistory = {
+              company: (entry.company || '').trim(),
+              industry: (entry.industry || '').trim(),
+              occupation: (entry.occupation || '').trim(),
+              jobTitle: (entry.jobTitle || '').trim(),
+            };
+
+            if (typeof entry.startYear === 'number' && !Number.isNaN(entry.startYear)) {
+              sanitized.startYear = entry.startYear;
+            }
+            if (typeof entry.endYear === 'number' && !Number.isNaN(entry.endYear)) {
+              sanitized.endYear = entry.endYear;
+            }
+
+            const hasText =
+              sanitized.company.length > 0 ||
+              sanitized.industry.length > 0 ||
+              sanitized.occupation.length > 0 ||
+              sanitized.jobTitle.length > 0;
+
+            if (!hasText && sanitized.startYear === undefined && sanitized.endYear === undefined) {
+              return null;
+            }
+
+            return sanitized;
+          })
+          .filter((entry): entry is WorkHistory => entry !== null);
+      };
+
+      const sanitizedEducation = sanitizeEducationEntries(education);
+      const sanitizedWorkHistory = sanitizeWorkHistoryEntries(workHistory);
+
       const updatePayload: Partial<Instructor> = {
         bio,
         specialties: specialtiesArray,
@@ -179,8 +246,9 @@ function InstructorProfileContent() {
         hobbies: hobbiesArray,
         highSchoolClub,
         messageToStudents,
-        education,
-        workHistory,
+        education: sanitizedEducation,
+        workHistory: sanitizedWorkHistory,
+        introVideoUrl,
       };
 
       if (isAdminMode) {
@@ -188,6 +256,15 @@ function InstructorProfileContent() {
       }
 
       await updateInstructor(targetId, updatePayload);
+      await logAppEvent('profile:update', {
+        userId: targetId,
+        role: isAdminMode ? 'admin' : 'instructor',
+        metadata: {
+          educationCount: sanitizedEducation.length,
+          workHistoryCount: sanitizedWorkHistory.length,
+          isAdminMode,
+        },
+      });
 
       if (isAdminMode) {
         const userRef = doc(db, 'users', targetId);
@@ -201,6 +278,15 @@ function InstructorProfileContent() {
       setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
       console.error('Error saving profile:', err);
+      await logAppEvent('profile:updateFailed', {
+        userId: isAdminMode && targetUserId ? targetUserId : user?.uid || undefined,
+        role: isAdminMode ? 'admin' : 'instructor',
+        severity: 'error',
+        metadata: {
+          message: err?.message,
+          isAdminMode,
+        },
+      });
       setError(err.message || 'プロフィールの保存に失敗しました');
     } finally {
       setSaving(false);
@@ -443,6 +529,18 @@ function InstructorProfileContent() {
               {!isAdminMode && (
                 <p className="mt-2 text-xs text-gray-500">面談用URLの変更は管理者が行います。変更が必要な場合は事務局へご連絡ください。</p>
               )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">自己紹介動画URL</label>
+              <input
+                type="url"
+                value={introVideoUrl}
+                onChange={(e) => setIntroVideoUrl(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="https://drive.google.com/..."
+              />
+              <p className="mt-2 text-xs text-gray-500">Google Drive など共有可能な動画リンクを入力してください。</p>
             </div>
 
             <div>

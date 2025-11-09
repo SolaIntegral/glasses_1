@@ -12,6 +12,7 @@ export default function NewInstructor() {
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
   const [meetingUrl, setMeetingUrl] = useState('');
+  const [introVideoUrl, setIntroVideoUrl] = useState('');
   const [autoGenerate, setAutoGenerate] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -68,6 +69,7 @@ export default function NewInstructor() {
         bio: '',
         specialties: [],
         meetingUrl: meetingUrl || '',
+        introVideoUrl: introVideoUrl || '',
         slackMemberId: '',
         profileImageUrl: '',
         isActive: true,
@@ -125,6 +127,7 @@ export default function NewInstructor() {
                   setUserId('');
                   setPassword('');
                   setMeetingUrl('');
+                  setIntroVideoUrl('');
                 }}
                 className="flex-1 bg-gray-600 text-white py-3 px-4 rounded-lg font-semibold text-center hover:bg-gray-700 transition-colors"
               >
@@ -217,6 +220,20 @@ export default function NewInstructor() {
                 placeholder="https://meet.google.com/xxx-xxxx-xxx"
               />
             </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              自己紹介動画URL
+              <span className="text-xs text-gray-500 ml-2">(例: https://drive.google.com/xxx)</span>
+            </label>
+            <input
+              type="url"
+              value={introVideoUrl}
+              onChange={(e) => setIntroVideoUrl(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="https://drive.google.com/..."
+            />
+          </div>
 
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm">

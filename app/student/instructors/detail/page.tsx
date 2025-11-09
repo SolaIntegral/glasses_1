@@ -27,6 +27,21 @@ function InstructorDetailContent() {
   const [booking, setBooking] = useState(false);
   const [error, setError] = useState('');
 
+  const getDrivePreviewUrl = (url: string) => {
+    try {
+      const parsed = new URL(url);
+      if (parsed.hostname.includes('drive.google.com')) {
+        const match = parsed.pathname.match(/\/file\/d\/([^/]+)/);
+        if (match) {
+          return `https://drive.google.com/file/d/${match[1]}/preview`;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to parse intro video url', e);
+    }
+    return null;
+  };
+
   useEffect(() => {
     if (instructorId && user) {
       const fetchData = async () => {
@@ -273,6 +288,44 @@ function InstructorDetailContent() {
             </div>
           )}
         </div>
+
+        {instructor.introVideoUrl && (
+          <div className="bg-white rounded-lg shadow p-6 mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">自己紹介動画</h3>
+            <div className="space-y-4">
+              {(() => {
+                const previewUrl = getDrivePreviewUrl(instructor.introVideoUrl);
+                if (previewUrl) {
+                  return (
+                    <div className="aspect-video w-full bg-black/5 rounded-lg overflow-hidden">
+                      <iframe
+                        src={previewUrl}
+                        className="w-full h-full"
+                        allow="autoplay"
+                        allowFullScreen
+                        loading="lazy"
+                        title="自己紹介動画"
+                      />
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+              <a
+                href={instructor.introVideoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                動画を開く
+                <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H7" />
+                </svg>
+              </a>
+              <p className="text-xs text-gray-500">動画は新しいタブでGoogle Driveが開きます。</p>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6 text-sm">

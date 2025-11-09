@@ -20,6 +20,7 @@ export interface Instructor {
   profileImageUrl: string;
   bio: string;
   specialties: string[];
+  introVideoUrl?: string;
   slackWebhookUrl?: string;
   slackMemberId?: string;
   isActive: boolean;
@@ -166,6 +167,7 @@ export interface InstructorProfileFormData {
   bio: string;
   specialties: string[];
   profileImageUrl?: string;
+  introVideoUrl?: string;
   // MVP要件で追加
   meetingUrl?: string;
   gender?: string;
