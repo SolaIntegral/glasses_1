@@ -65,6 +65,20 @@ export default function AdminSidebar() {
         </svg>
       ),
     },
+    {
+      name: 'ログ管理',
+      path: '/admin/logs',
+      icon: (
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 17v-6a2 2 0 012-2h6m-3-4h3a2 2 0 012 2v12a2 2 0 01-2 2h-8a2 2 0 01-2-2v-1"
+          />
+        </svg>
+      ),
+    },
   ];
 
   return (

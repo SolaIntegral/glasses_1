@@ -199,8 +199,36 @@ export interface Notification {
 export interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signIn: (userId: string, password: string) => Promise<void>;
-  signUp: (userId: string, password: string, displayName: string, role: UserRole) => Promise<void>;
-  signOut: () => Promise<void>;
+  signIn: (userId: string, password: string) => Promise<User>;
+  signUp: (
+    userId: string,
+    password: string,
+    displayName: string,
+    role: UserRole
+  ) => Promise<User>;
+  signOut: (options?: { reason?: string }) => Promise<void>;
+}
+
+export type AppLogType =
+  | 'auth:signIn'
+  | 'auth:signInFailed'
+  | 'auth:signOut'
+  | 'auth:sessionChecked'
+  | 'profile:update'
+  | 'profile:updateFailed'
+  | 'system:performance'
+  | 'system:error';
+
+export type AppLogSeverity = 'info' | 'warn' | 'error';
+
+export interface AppLog {
+  id?: string;
+  type: AppLogType;
+  userId?: string;
+  role?: UserRole;
+  clientType?: 'web' | 'ios' | 'android' | 'unknown';
+  severity: AppLogSeverity;
+  timestamp: Date;
+  metadata?: Record<string, any>;
 }
 
