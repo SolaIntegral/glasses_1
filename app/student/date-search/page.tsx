@@ -166,9 +166,8 @@ export default function DateSearchPage() {
                   const now = new Date();
                   const isPast = startTime <= now;
                   const hoursDiff = (startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-                  const BOOKING_LIMIT_HOURS = 0;
-                  const meetsLimit = BOOKING_LIMIT_HOURS === 0 ? true : hoursDiff >= BOOKING_LIMIT_HOURS;
-                  const isSelectable = !isPast && meetsLimit;
+                  // 2時間前を過ぎている場合は選択不可（時間が過ぎていない場合も含む）
+                  const isSelectable = !isPast && hoursDiff >= 2;
                   
                   return (
                     <div key={slot.id} className={`flex items-center justify-between p-3 border rounded-lg ${
@@ -192,9 +191,7 @@ export default function DateSearchPage() {
                         </div>
                         {!isSelectable && (
                           <span className="text-xs text-gray-400">
-                            {isPast
-                              ? '時間が過ぎています'
-                              : `予約は${BOOKING_LIMIT_HOURS}時間前までです`}
+                            {isPast ? '時間が過ぎています' : '2時間前までに予約してください'}
                           </span>
                         )}
                       </div>

@@ -26,15 +26,12 @@ export const createBooking = async (
   sessionType?: SessionType,
   questionsBeforeSession?: string[]
 ): Promise<string> => {
-  // テスト用：時間制限を一時的に無効化
-  // 元の制限: startTime まで 2 時間以上必要
-  const BOOKING_LIMIT_HOURS = 0;
-  if (BOOKING_LIMIT_HOURS > 0) {
-    const now = new Date();
-    const hoursDiff = (startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-    if (hoursDiff < BOOKING_LIMIT_HOURS) {
-      throw new Error(`予約は${BOOKING_LIMIT_HOURS}時間以上前に行う必要があります`);
-    }
+  // 2時間以上先かチェック
+  const now = new Date();
+  const hoursDiff = (startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+  if (hoursDiff < 2) {
+    throw new Error('予約は2時間以上前に行う必要があります');
   }
 
   // 空き時間が存在し、予約されていないかチェック

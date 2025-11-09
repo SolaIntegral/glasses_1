@@ -36,9 +36,18 @@ export default function AddAvailabilityPage() {
     setError('');
 
     try {
+      const now = new Date();
+      const minDate = new Date(now.getTime() + 25 * 60 * 60 * 1000); // 25時間後
+      
       // 各スロットを作成
       for (const slot of selectedSlots) {
         const slotDate = startOfDay(slot.date);
+        
+        if (slotDate < startOfDay(minDate)) {
+          setError('予約枠は24時間以上先の日付に設定してください');
+          setLoading(false);
+          return;
+        }
 
         const [hour, minute] = slot.time.split(':').map(Number);
         const endTime = new Date(slot.date);
