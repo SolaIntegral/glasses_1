@@ -3,6 +3,44 @@ import * as admin from 'firebase-admin';
 import { WebClient } from '@slack/web-api';
 import { google } from 'googleapis';
 
+const DEFAULT_MEETING_URL =
+  functions.config().meeting?.default_url ||
+  process.env.MEETING_DEFAULT_URL ||
+  'https://meet.google.com/kdd-mtnd-eyc';
+
+const APP_HOSTS = new Set([
+  'glasses1-582eb.web.app',
+  'glasses1-582eb.firebaseapp.com',
+  'localhost',
+  '127.0.0.1',
+]);
+
+const TLDEV_RECORDER_EMAIL = 'meetings@tldv.io';
+
+const sanitizeMeetingUrl = (url?: string | null): string => {
+  if (!url) {
+    return DEFAULT_MEETING_URL;
+  }
+
+  const trimmed = url.trim();
+  if (!trimmed) {
+    return DEFAULT_MEETING_URL;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    if (!['https:', 'http:'].includes(parsed.protocol)) {
+      return DEFAULT_MEETING_URL;
+    }
+    if (APP_HOSTS.has(parsed.hostname)) {
+      return DEFAULT_MEETING_URL;
+    }
+    return parsed.toString();
+  } catch {
+    return DEFAULT_MEETING_URL;
+  }
+};
+
 admin.initializeApp();
 
 // Slack Bot Token（環境変数から取得）
@@ -592,7 +630,6 @@ export const onCreateBooking = functions.firestore
   .document('bookings/{bookingId}')
   .onCreate(async (snap, context) => {
     const booking = snap.data();
-    const bookingId = context.params.bookingId;
 
     // 予約が確定済みの場合のみ処理
     if (booking.status !== 'confirmed') {
@@ -629,7 +666,7 @@ export const onCreateBooking = functions.firestore
       const userData = userDoc.exists ? userDoc.data() : null;
       const instructorName = userData?.displayName || '講師';
       const instructorEmail = userData?.email || instructor?.email;
-      const instructorMeetingUrl = instructor?.meetingUrl || booking.meetingUrl;
+      const instructorMeetingUrl = sanitizeMeetingUrl(instructor?.meetingUrl || booking.meetingUrl);
 
       // 生徒情報を取得
       const studentDoc = await admin.firestore()
@@ -678,9 +715,11 @@ export const onCreateBooking = functions.firestore
           dateTime: endTime.toISOString(),
           timeZone: 'Asia/Tokyo',
         },
+        location: instructorMeetingUrl || undefined,
         attendees: [
           ...(instructorEmail ? [{ email: instructorEmail }] : []),
           ...(student?.email ? [{ email: student.email }] : []),
+          { email: TLDEV_RECORDER_EMAIL },
         ],
         reminders: {
           useDefault: false,
@@ -689,15 +728,6 @@ export const onCreateBooking = functions.firestore
             { method: 'popup', minutes: 15 }, // 15分前
           ],
         },
-        ...(instructorMeetingUrl ? {
-          hangoutLink: instructorMeetingUrl,
-          conferenceData: {
-            createRequest: {
-              requestId: `booking-${bookingId}`,
-              conferenceSolutionKey: { type: 'hangoutsMeet' },
-            },
-          },
-        } : {}),
       };
 
       const response = await calendar.events.insert({

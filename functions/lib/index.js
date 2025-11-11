@@ -1,14 +1,46 @@
 "use strict";
-var _a;
+var _a, _b;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.onUpdateBooking = exports.onCreateBooking = exports.sendPostSessionReminder = exports.sendSessionReminder = exports.signUpWithCustomToken = exports.sendBookingCancellationNotification = exports.sendReportReminder = exports.sendBookingNotification = exports.signInWithCustomToken = void 0;
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const web_api_1 = require("@slack/web-api");
 const googleapis_1 = require("googleapis");
+const DEFAULT_MEETING_URL = ((_a = functions.config().meeting) === null || _a === void 0 ? void 0 : _a.default_url) ||
+    process.env.MEETING_DEFAULT_URL ||
+    'https://meet.google.com/kdd-mtnd-eyc';
+const APP_HOSTS = new Set([
+    'glasses1-582eb.web.app',
+    'glasses1-582eb.firebaseapp.com',
+    'localhost',
+    '127.0.0.1',
+]);
+const TLDEV_RECORDER_EMAIL = 'meetings@tldv.io';
+const sanitizeMeetingUrl = (url) => {
+    if (!url) {
+        return DEFAULT_MEETING_URL;
+    }
+    const trimmed = url.trim();
+    if (!trimmed) {
+        return DEFAULT_MEETING_URL;
+    }
+    try {
+        const parsed = new URL(trimmed);
+        if (!['https:', 'http:'].includes(parsed.protocol)) {
+            return DEFAULT_MEETING_URL;
+        }
+        if (APP_HOSTS.has(parsed.hostname)) {
+            return DEFAULT_MEETING_URL;
+        }
+        return parsed.toString();
+    }
+    catch (_a) {
+        return DEFAULT_MEETING_URL;
+    }
+};
 admin.initializeApp();
 // Slack Bot Token（環境変数から取得）
-const slackToken = ((_a = functions.config().slack) === null || _a === void 0 ? void 0 : _a.bot_token) || process.env.SLACK_BOT_TOKEN;
+const slackToken = ((_b = functions.config().slack) === null || _b === void 0 ? void 0 : _b.bot_token) || process.env.SLACK_BOT_TOKEN;
 const slackClient = slackToken ? new web_api_1.WebClient(slackToken) : null;
 // パスワードをハッシュ化する関数（簡易版）
 function hashPassword(password) {
@@ -532,7 +564,6 @@ exports.onCreateBooking = functions.firestore
     .document('bookings/{bookingId}')
     .onCreate(async (snap, context) => {
     const booking = snap.data();
-    const bookingId = context.params.bookingId;
     // 予約が確定済みの場合のみ処理
     if (booking.status !== 'confirmed') {
         return null;
@@ -562,7 +593,7 @@ exports.onCreateBooking = functions.firestore
         const userData = userDoc.exists ? userDoc.data() : null;
         const instructorName = (userData === null || userData === void 0 ? void 0 : userData.displayName) || '講師';
         const instructorEmail = (userData === null || userData === void 0 ? void 0 : userData.email) || (instructor === null || instructor === void 0 ? void 0 : instructor.email);
-        const instructorMeetingUrl = (instructor === null || instructor === void 0 ? void 0 : instructor.meetingUrl) || booking.meetingUrl;
+        const instructorMeetingUrl = sanitizeMeetingUrl((instructor === null || instructor === void 0 ? void 0 : instructor.meetingUrl) || booking.meetingUrl);
         // 生徒情報を取得
         const studentDoc = await admin.firestore()
             .collection('users')
@@ -594,30 +625,31 @@ exports.onCreateBooking = functions.firestore
             .filter(Boolean)
             .join('\n');
         // Googleカレンダーにイベントを作成
-        const event = Object.assign({ summary: `【メンターセッション】${instructorName} × ${studentName} の面談`, description: description, start: {
+        const event = {
+            summary: `【メンターセッション】${instructorName} × ${studentName} の面談`,
+            description: description,
+            start: {
                 dateTime: startTime.toISOString(),
                 timeZone: 'Asia/Tokyo',
-            }, end: {
+            },
+            end: {
                 dateTime: endTime.toISOString(),
                 timeZone: 'Asia/Tokyo',
-            }, attendees: [
+            },
+            location: instructorMeetingUrl || undefined,
+            attendees: [
                 ...(instructorEmail ? [{ email: instructorEmail }] : []),
                 ...((student === null || student === void 0 ? void 0 : student.email) ? [{ email: student.email }] : []),
-            ], reminders: {
+                { email: TLDEV_RECORDER_EMAIL },
+            ],
+            reminders: {
                 useDefault: false,
                 overrides: [
                     { method: 'email', minutes: 24 * 60 },
                     { method: 'popup', minutes: 15 }, // 15分前
                 ],
-            } }, (instructorMeetingUrl ? {
-            hangoutLink: instructorMeetingUrl,
-            conferenceData: {
-                createRequest: {
-                    requestId: `booking-${bookingId}`,
-                    conferenceSolutionKey: { type: 'hangoutsMeet' },
-                },
             },
-        } : {}));
+        };
         const response = await calendar.events.insert({
             calendarId: calendarId,
             requestBody: event,
